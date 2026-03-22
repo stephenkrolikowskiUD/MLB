@@ -133,22 +133,34 @@ async function fetchCareer(id){
   S.loading.career=false;render();
 }
 
+// FULLY PATCHED fetchVsTeam
 async function fetchVsTeam(id){
   S.loading.vsTeam=true;render();
   try{
     const grp=S.playerType==="pitcher"?"pitching":"hitting";
-    const d=await mlbFetch(`${API}/people/${id}/stats?stats=vsTeamTotal&group=${grp}`);
-    S.vsTeamStats=((d.stats||[])[0]?.splits||[]).map(s=>({
-      team:s.opponent?.abbreviation||s.team?.abbreviation||"",
-      teamName:s.opponent?.name||s.team?.name||"",
-      stat:s.stat
-    })).filter(s=>s.team);
+    const d=await mlbFetch(`${API}/people/${id}/stats?stats=vsTeamTotal&group=${grp}&sportId=1`);
+    
+    S.vsTeamAllData=((d.stats||[])[0]?.splits||[]).map(s=>{
+      const opp=s.opponent||s.team;
+      let tId=opp?.id;
+      if(!tId&&opp?.link){
+        tId=parseInt(opp.link.split('/').pop()); 
+      }
+      return{
+        teamId:tId,
+        team:opp?.name||"Unknown",
+        stat:s.stat
+      };
+    }).filter(s=>s.teamId); 
+
     if(S.vsTeamId){
-      S.vsTeamStats=S.vsTeamStats.filter(s=>{
-        const tm=S.teamList.find(t=>t.id===S.vsTeamId);
-        return tm&&(s.team===tm.abbr||s.teamName===tm.name);
-      });
+      S.vsTeamStats=S.vsTeamAllData.filter(s=>s.teamId===S.vsTeamId);
+    }else{
+      S.vsTeamStats=[...S.vsTeamAllData];
     }
+    
+    S.vsTeamStats.sort((a,b)=>(parseInt(b.stat?.gamesPlayed)||0)-(parseInt(a.stat?.gamesPlayed)||0));
+
   }catch(e){console.error(e)}
   S.loading.vsTeam=false;render();
 }
