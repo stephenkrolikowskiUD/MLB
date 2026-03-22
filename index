@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"/>
+<title>MLB Player Lookup</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f291a;color:#fff;font-family:system-ui,-apple-system,sans-serif;max-width:480px;margin:0 auto;padding-bottom:70px}
+input,select{background:#1a3d2a;color:#fff;border:1px solid #2d5a3d;border-radius:8px;padding:10px 12px;font-size:14px;width:100%}
+input::placeholder{color:#6b8f7b}
+.header{background:#163024;padding:14px 16px;border-bottom:1px solid #2d5a3d;position:sticky;top:0;z-index:10}
+.header-title{color:#4ade80;font-weight:700;font-size:14px;margin-bottom:8px}
+.search-wrap{position:relative}
+.suggestions{position:absolute;top:100%;left:0;right:0;background:#1a3d2a;border:1px solid #2d5a3d;border-top:none;border-radius:0 0 8px 8px;max-height:220px;overflow-y:auto;z-index:20;display:none}
+.sug-item{padding:10px 12px;cursor:pointer;border-bottom:1px solid #24503a;font-size:13px}
+.sug-item:hover,.sug-item.active{background:#24503a}
+.sug-name{font-weight:600;color:#fff}
+.sug-meta{color:#6b8f7b;font-size:11px;margin-top:2px}
+.section{padding:14px 16px 0}
+.label{color:#86efac;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.card{background:#163024;border-radius:10px;padding:12px 14px;margin-bottom:10px}
+.card-title{color:#4ade80;font-weight:700;font-size:13px;margin-bottom:8px}
+.profile{display:flex;align-items:center;gap:14px;padding:14px 16px}
+.profile-info h2{font-size:18px;font-weight:700;color:#fff}
+.profile-info p{font-size:12px;color:#86efac;margin-top:2px}
+.profile-img{width:64px;height:64px;border-radius:50%;background:#1a3d2a;overflow:hidden}
+.profile-img img{width:100%;height:100%}
+.sub-tabs{display:flex;gap:4px;padding:8px 16px;overflow-x:auto}
+.sub-tab{padding:8px 14px;font-size:12px;font-weight:600;color:#6b8f7b;background:#1a3d2a;border:1px solid #2d5a3d;border-radius:20px;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.sub-tab.active{color:#4ade80;background:#24503a;border-color:#4ade80}
+.tbl-wrap{overflow-x:auto;padding:0 16px 16px}
+table{width:100%;border-collapse:collapse;font-size:11px;min-width:400px}
+th{background:#1a3d2a;color:#4ade80;font-weight:700;padding:8px 6px;text-align:center;border-bottom:1px solid #2d5a3d;white-space:nowrap;position:sticky;top:0;z-index:5}
+td{padding:7px 6px;text-align:center;color:#e5e7eb;border-bottom:1px solid #1a3d2a;white-space:nowrap}
+tr:hover td{background:#1a3d2a}
+td.highlight{color:#4ade80;font-weight:700}
+.vs-search{display:flex;gap:8px;margin-bottom:10px}
+.vs-search select,.vs-search input{flex:1}
+.loading-sm{color:#6b8f7b;font-size:12px;padding:20px;text-align:center}
+.empty{color:#6b8f7b;font-size:12px;padding:20px;text-align:center}
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}
+.stat-box{background:#1a3d2a;border-radius:8px;padding:8px 4px;text-align:center}
+.stat-box .val{font-weight:700;font-size:16px;color:#4ade80}
+.stat-box .lbl{font-size:9px;color:#86efac;margin-top:2px}
+.tab-bar{position:fixed;bottom:0;left:0;right:0;max-width:480px;margin:0 auto;background:#163024;border-top:1px solid #2d5a3d;display:flex;z-index:20}
+.tab-btn{flex:1;padding:12px;text-align:center;font-size:11px;font-weight:600;color:#6b8f7b;cursor:pointer;border:none;background:none}
+.tab-btn.active{color:#4ade80;border-top:2px solid #4ade80}
+.page{display:none}
+.page.active{display:block}
+.type-toggle{display:flex;gap:4px;margin-bottom:10px}
+.type-btn{flex:1;padding:8px;text-align:center;font-size:12px;font-weight:600;border-radius:8px;cursor:pointer;border:1px solid #2d5a3d;background:#1a3d2a;color:#6b8f7b}
+.type-btn.active{background:#24503a;color:#4ade80;border-color:#4ade80}
+.timestamp{text-align:center;padding:16px;color:#4a7a5a;font-size:10px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const API="https://statsapi.mlb.com/api/v1";
+let S={
+  tab:"lookup",subTab:"career",playerType:"batter",
+  player:null,searchResults:[],sugIdx:-1,
+  careerStats:null,ybyStats:null,vsTeamStats:null,
+  vsPlayerId:null,vsPlayerName:"",vsPlayerResults:[],vsPlayerStats:null,
+  vsTeamId:null,vsTeamName:"",
+  loading:{},teamList:[]
+};
+
+// Fetch all teams once
+async function loadTeams(){
+  try{
+    const r=await fetch(`${API}/teams?sportId=1&season=2025`);
+    const d=await r.json();
+    S.teamList=(d.teams||[]).map(t=>({id:t.id,name:t.name,abbr:t.abbreviation}));
+  }catch(e){console.error(e)}
+}
+loadTeams();
+
+async function searchPlayers(q){
+  if(q.length<2){S.searchResults=[];render();return}
+  try{
+    const r=await fetch(`${API}/people/search?names=${encodeURIComponent(q)}&sportId=1&hydrate=currentTeam&limit=10`);
+    const d=await r.json();
+    S.searchResults=(d.people||[]).filter(p=>p.active).map(p=>({
+      id:p.id,name:p.fullName,team:p.currentTeam?.abbreviation||"",
+      pos:p.primaryPosition?.abbreviation||"",
+      number:p.primaryNumber||"",
+      bats:p.batSide?.code||"",throws:p.pitchHand?.code||"",
+      img:`https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_120,q_auto:best/v1/people/${p.id}/headshot/67/current`
+    }));
+    render();
+  }catch(e){console.error(e)}
+}
+
+async function selectPlayer(p){
+  S.player=p;S.searchResults=[];S.subTab="career";
+  S.careerStats=null;S.ybyStats=null;S.vsTeamStats=null;S.vsPlayerStats=null;
+  S.vsPlayerId=null;S.vsPlayerName="";S.vsTeamId=null;S.vsTeamName="";
+  S.playerType=["P","TWP"].includes(p.pos)?"pitcher":"batter";
+  render();
+  fetchCareer(p.id);
+}
+
+async function fetchCareer(id){
+  S.loading.career=true;render();
+  try{
+    const grp=S.playerType==="pitcher"?"pitching":"hitting";
+    const[cr,yby]=await Promise.all([
+      fetch(`${API}/people/${id}/stats?stats=career&group=${grp}`).then(r=>r.json()),
+      fetch(`${API}/people/${id}/stats?stats=yearByYear&group=${grp}&sportId=1`).then(r=>r.json())
+    ]);
+    S.careerStats=(cr.stats||[])[0]?.splits?.[0]?.stat||null;
+    S.ybyStats=((yby.stats||[])[0]?.splits||[]).filter(s=>s.sport?.id===1).map(s=>({
+      season:s.season,team:s.team?.abbreviation||"",stat:s.stat
+    }));
+  }catch(e){console.error(e)}
+  S.loading.career=false;render();
+}
+
+async function fetchVsTeam(id){
+  S.loading.vsTeam=true;render();
+  try{
+    const grp=S.playerType==="pitcher"?"pitching":"hitting";
+    const r=await fetch(`${API}/people/${id}/stats?stats=vsTeamTotal&group=${grp}`);
+    const d=await r.json();
+    S.vsTeamStats=((d.stats||[])[0]?.splits||[]).map(s=>({
+      team:s.opponent?.abbreviation||s.team?.abbreviation||"",
+      teamName:s.opponent?.name||s.team?.name||"",
+      stat:s.stat
+    })).filter(s=>s.team);
+    if(S.vsTeamId){
+      S.vsTeamStats=S.vsTeamStats.filter(s=>{
+        const tm=S.teamList.find(t=>t.id===S.vsTeamId);
+        return tm&&(s.team===tm.abbr||s.teamName===tm.name);
+      });
+    }
+  }catch(e){console.error(e)}
+  S.loading.vsTeam=false;render();
+}
+
+async function searchVsPlayer(q){
+  if(q.length<2){S.vsPlayerResults=[];render();return}
+  try{
+    const r=await fetch(`${API}/people/search?names=${encodeURIComponent(q)}&sportId=1&limit=8`);
+    const d=await r.json();
+    S.vsPlayerResults=(d.people||[]).map(p=>({
+      id:p.id,name:p.fullName,pos:p.primaryPosition?.abbreviation||"",
+      team:p.currentTeam?.abbreviation||""
+    }));
+    render();
+  }catch(e){console.error(e)}
+}
+
+async function fetchVsPlayer(playerId,opposingId){
+  S.loading.vsPlayer=true;S.vsPlayerResults=[];render();
+  try{
+    const grp=S.playerType==="pitcher"?"pitching":"hitting";
+    const r=await fetch(`${API}/people/${playerId}/stats?stats=vsPlayer&group=${grp}&opposingPlayerId=${opposingId}`);
+    const d=await r.json();
+    const splits=(d.stats||[])[0]?.splits||[];
+    S.vsPlayerStats=splits.length>0?splits[0].stat:null;
+  }catch(e){console.error(e);S.vsPlayerStats=null}
+  S.loading.vsPlayer=false;render();
+}
+
+function batCols(){return[
+  {k:"gamesPlayed",l:"G"},{k:"atBats",l:"AB"},{k:"hits",l:"H"},{k:"doubles",l:"2B"},
+  {k:"triples",l:"3B"},{k:"homeRuns",l:"HR"},{k:"rbi",l:"RBI"},{k:"runs",l:"R"},
+  {k:"stolenBases",l:"SB"},{k:"baseOnBalls",l:"BB"},{k:"strikeOuts",l:"SO"},
+  {k:"avg",l:"AVG"},{k:"obp",l:"OBP"},{k:"slg",l:"SLG"},{k:"ops",l:"OPS"}
+]}
+function pitCols(){return[
+  {k:"gamesPlayed",l:"G"},{k:"gamesStarted",l:"GS"},{k:"wins",l:"W"},{k:"losses",l:"L"},
+  {k:"era",l:"ERA"},{k:"inningsPitched",l:"IP"},{k:"hits",l:"H"},{k:"homeRuns",l:"HR"},
+  {k:"strikeOuts",l:"SO"},{k:"baseOnBalls",l:"BB"},{k:"whip",l:"WHIP"},
+  {k:"strikeoutWalkRatio",l:"K/BB"},{k:"avg",l:"BAA"}
+]}
+function getCols(){return S.playerType==="pitcher"?pitCols():batCols()}
+function fv(stat,key){
+  if(!stat)return"—";
+  const v=stat[key];
+  if(v===undefined||v===null)return"—";
+  return v;
+}
+
+function buildTable(headers,rows){
+  if(!rows||rows.length===0)return`<div class="empty">No data available</div>`;
+  const ths=headers.map(h=>`<th>${h.l}</th>`).join("");
+  const trs=rows.map(r=>{
+    const tds=headers.map(h=>`<td>${typeof r==="function"?r(h):fv(r.stat||r,h.k)}</td>`).join("");
+    return`<tr>${r.label?`<td class="highlight">${r.label}</td>`:""}${tds}</tr>`;
+  }).join("");
+  return`<div class="tbl-wrap"><table><thead><tr>${rows[0]?.label?`<th></th>`:""}${ths}</tr></thead><tbody>${trs}</tbody></table></div>`;
+}
+
+function render(){
+  const app=document.getElementById("app");
+  const p=S.player;
+  const cols=getCols();
+
+  // Career summary boxes
+  let summaryHTML="";
+  if(p&&S.careerStats){
+    const st=S.careerStats;
+    const boxes=S.playerType==="pitcher"
+      ?[{v:st.era||"—",l:"ERA"},{v:st.wins||"—",l:"W"},{v:st.strikeOuts||"—",l:"K"},{v:st.whip||"—",l:"WHIP"}]
+      :[{v:st.avg||"—",l:"AVG"},{v:st.homeRuns||"—",l:"HR"},{v:st.hits||"—",l:"H"},{v:st.ops||"—",l:"OPS"}];
+    summaryHTML=`<div class="stat-grid">${boxes.map(b=>`<div class="stat-box"><div class="val">${b.v}</div><div class="lbl">${b.l}</div></div>`).join("")}</div>`;
+  }
+
+  // Year by year table
+  let ybyHTML=`<div class="loading-sm">Select a player to begin</div>`;
+  if(S.loading.career)ybyHTML=`<div class="loading-sm">⚾ Loading stats...</div>`;
+  else if(S.ybyStats){
+    const rows=S.ybyStats.map(y=>({label:`${y.season} ${y.team}`,stat:y.stat}));
+    if(S.careerStats)rows.push({label:"CAREER",stat:S.careerStats});
+    ybyHTML=buildTable(cols,rows);
+  }
+
+  // Vs Team
+  let vsTeamHTML="";
+  if(S.subTab==="vsTeam"){
+    const teamOpts=S.teamList.map(t=>`<option value="${t.id}" ${t.id===S.vsTeamId?"selected":""}>${t.abbr} — ${t.name}</option>`).join("");
+    let tableHTML=`<div class="empty">Select a team or view all</div>`;
+    if(S.loading.vsTeam)tableHTML=`<div class="loading-sm">⚾ Loading...</div>`;
+    else if(S.vsTeamStats){
+      const rows=S.vsTeamStats.map(t=>({label:t.team,stat:t.stat}));
+      tableHTML=rows.length>0?buildTable(cols,rows):`<div class="empty">No matchup data</div>`;
+    }
+    vsTeamHTML=`
+      <div class="section">
+        <div class="vs-search">
+          <select id="vsTeamSelect"><option value="">All Teams</option>${teamOpts}</select>
+        </div>
+        ${tableHTML}
+      </div>`;
+  }
+
+  // Vs Player
+  let vsPlayerHTML="";
+  if(S.subTab==="vsPlayer"){
+    const sugHTML=S.vsPlayerResults.length>0?`<div class="suggestions" style="display:block;position:relative;margin-bottom:8px">${S.vsPlayerResults.map((r,i)=>`<div class="sug-item" onclick="pickVsPlayer(${r.id},'${r.name.replace(/'/g,"\\'")}')"><span class="sug-name">${r.name}</span> <span class="sug-meta">${r.team} · ${r.pos}</span></div>`).join("")}</div>`:"";
+    let resultHTML=`<div class="empty">Search for a ${S.playerType==="pitcher"?"batter":"pitcher"} to see head-to-head stats</div>`;
+    if(S.loading.vsPlayer)resultHTML=`<div class="loading-sm">⚾ Loading matchup...</div>`;
+    else if(S.vsPlayerStats){
+      const st=S.vsPlayerStats;
+      resultHTML=`
+        <div class="card"><div class="card-title">${S.player.name} vs ${S.vsPlayerName}</div>
+        ${summaryFromStat(st)}</div>
+        ${buildTable(cols,[{stat:st}])}`;
+    }else if(S.vsPlayerId){
+      resultHTML=`<div class="empty">No head-to-head data found</div>`;
+    }
+    vsPlayerHTML=`
+      <div class="section">
+        <input type="text" id="vsPlayerSearch" placeholder="Search ${S.playerType==='pitcher'?'batter':'pitcher'}..." value=""/>
+        ${sugHTML}${resultHTML}
+      </div>`;
+  }
+
+  function summaryFromStat(st){
+    if(!st)return"";
+    const boxes=S.playerType==="pitcher"
+      ?[{v:st.era||"—",l:"ERA"},{v:st.inningsPitched||"—",l:"IP"},{v:st.strikeOuts||"—",l:"K"},{v:st.avg||"—",l:"BAA"}]
+      :[{v:st.avg||"—",l:"AVG"},{v:st.homeRuns||"—",l:"HR"},{v:st.atBats||"—",l:"AB"},{v:st.ops||"—",l:"OPS"}];
+    return`<div class="stat-grid">${boxes.map(b=>`<div class="stat-box"><div class="val">${b.v}</div><div class="lbl">${b.l}</div></div>`).join("")}</div>`;
+  }
+
+  // Player suggestions
+  const sugsHTML=S.searchResults.length>0?`<div class="suggestions" style="display:block">${S.searchResults.map((r,i)=>`<div class="sug-item ${i===S.sugIdx?"active":""}" onclick="pickPlayer(${i})"><div class="sug-name">${r.name}</div><div class="sug-meta">${r.team} · ${r.pos} · #${r.number} · B:${r.bats} T:${r.throws}</div></div>`).join("")}</div>`:"";
+
+  app.innerHTML=`
+    <div class="header">
+      <div class="header-title">⚾ MLB Player Lookup</div>
+      <div class="search-wrap">
+        <input type="text" id="searchInput" placeholder="Search any MLB player..." autocomplete="off" value=""/>
+        ${sugsHTML}
+      </div>
+    </div>
+
+    ${p?`
+    <div class="profile">
+      <div class="profile-img"><img src="${p.img}" onerror="this.style.display='none'" alt=""/></div>
+      <div class="profile-info">
+        <h2>${p.name}</h2>
+        <p>${p.team} · ${p.pos} · #${p.number} · B:${p.bats} T:${p.throws}</p>
+      </div>
+    </div>
+    ${summaryHTML}
+    <div class="sub-tabs">
+      <div class="sub-tab ${S.subTab==="career"?"active":""}" onclick="switchSub('career')">Career</div>
+      <div class="sub-tab ${S.subTab==="vsTeam"?"active":""}" onclick="switchSub('vsTeam')">vs Team</div>
+      <div class="sub-tab ${S.subTab==="vsPlayer"?"active":""}" onclick="switchSub('vsPlayer')">vs Player</div>
+    </div>
+    ${S.subTab==="career"?ybyHTML:""}
+    ${vsTeamHTML}
+    ${vsPlayerHTML}
+    `:`<div class="section"><div class="empty" style="padding:60px 20px;font-size:14px">Search for any active MLB player to see career stats, team matchups, and head-to-head data.</div></div>`}
+    <div class="timestamp">Data from MLB Stats API · Live</div>
+  `;
+
+  // Event listeners
+  const si=document.getElementById("searchInput");
+  if(si){
+    si.addEventListener("input",e=>{
+      clearTimeout(window._st);
+      window._st=setTimeout(()=>searchPlayers(e.target.value),300);
+    });
+    si.addEventListener("keydown",e=>{
+      if(e.key==="ArrowDown"){e.preventDefault();S.sugIdx=Math.min(S.sugIdx+1,S.searchResults.length-1);render()}
+      if(e.key==="ArrowUp"){e.preventDefault();S.sugIdx=Math.max(S.sugIdx-1,-1);render()}
+      if(e.key==="Enter"&&S.sugIdx>=0){pickPlayer(S.sugIdx)}
+    });
+  }
+  const vts=document.getElementById("vsTeamSelect");
+  if(vts)vts.addEventListener("change",e=>{
+    S.vsTeamId=e.target.value?parseInt(e.target.value):null;
+    S.vsTeamName=e.target.options[e.target.selectedIndex]?.text||"";
+    fetchVsTeam(S.player.id);
+  });
+  const vps=document.getElementById("vsPlayerSearch");
+  if(vps){
+    vps.addEventListener("input",e=>{
+      clearTimeout(window._vst);
+      window._vst=setTimeout(()=>searchVsPlayer(e.target.value),300);
+    });
+  }
+}
+
+function pickPlayer(i){
+  selectPlayer(S.searchResults[i]);
+  S.sugIdx=-1;
+}
+function switchSub(t){
+  S.subTab=t;
+  if(t==="vsTeam"&&!S.vsTeamStats)fetchVsTeam(S.player.id);
+  render();
+}
+function pickVsPlayer(id,name){
+  S.vsPlayerId=id;S.vsPlayerName=name;S.vsPlayerResults=[];
+  fetchVsPlayer(S.player.id,id);
+}
+
+render();
+</script>
+</body>
+</html>
