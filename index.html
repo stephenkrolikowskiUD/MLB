@@ -58,10 +58,27 @@ td.highlight{color:#4ade80;font-weight:700}
 <div id="app"></div>
 <script>
 const API="https://statsapi.mlb.com/api/v1";
+const PROXY="https://corsproxy.io/?";
+let useProxy=false;
+
+async function mlbFetch(url){
+  try{
+    const r=await fetch(url);
+    if(!r.ok)throw new Error(r.status);
+    return r.json();
+  }catch(e){
+    if(!useProxy){
+      useProxy=true;
+      const r2=await fetch(PROXY+encodeURIComponent(url));
+      return r2.json();
+    }
+    throw e;
+  }
+}
 let S={
   tab:"lookup",subTab:"career",playerType:"batter",
   player:null,searchResults:[],sugIdx:-1,
-  careerStats:null,ybyStats:null,vsTeamStats:null,
+  careerStats:null,ybyStats:null,vsTeamStats:null,vsTeamAllData:null,
   vsPlayerId:null,vsPlayerName:"",vsPlayerResults:[],vsPlayerStats:null,
   vsTeamId:null,vsTeamName:"",
   loading:{},teamList:[]
@@ -70,8 +87,7 @@ let S={
 // Fetch all teams once
 async function loadTeams(){
   try{
-    const r=await fetch(`${API}/teams?sportId=1&season=2025`);
-    const d=await r.json();
+    const d=await mlbFetch(`${API}/teams?sportId=1&season=2025`);
     S.teamList=(d.teams||[]).map(t=>({id:t.id,name:t.name,abbr:t.abbreviation}));
   }catch(e){console.error(e)}
 }
@@ -80,8 +96,7 @@ loadTeams();
 async function searchPlayers(q){
   if(q.length<2){S.searchResults=[];render();return}
   try{
-    const r=await fetch(`${API}/people/search?names=${encodeURIComponent(q)}&sportId=1&hydrate=currentTeam&limit=10`);
-    const d=await r.json();
+    const d=await mlbFetch(`${API}/people/search?names=${encodeURIComponent(q)}&sportId=1&hydrate=currentTeam&limit=10`);
     S.searchResults=(d.people||[]).filter(p=>p.active).map(p=>({
       id:p.id,name:p.fullName,team:p.currentTeam?.abbreviation||"",
       pos:p.primaryPosition?.abbreviation||"",
@@ -95,7 +110,7 @@ async function searchPlayers(q){
 
 async function selectPlayer(p){
   S.player=p;S.searchResults=[];S.subTab="career";
-  S.careerStats=null;S.ybyStats=null;S.vsTeamStats=null;S.vsPlayerStats=null;
+  S.careerStats=null;S.ybyStats=null;S.vsTeamStats=null;S.vsTeamAllData=null;S.vsPlayerStats=null;
   S.vsPlayerId=null;S.vsPlayerName="";S.vsTeamId=null;S.vsTeamName="";
   S.playerType=["P","TWP"].includes(p.pos)?"pitcher":"batter";
   render();
@@ -107,8 +122,8 @@ async function fetchCareer(id){
   try{
     const grp=S.playerType==="pitcher"?"pitching":"hitting";
     const[cr,yby]=await Promise.all([
-      fetch(`${API}/people/${id}/stats?stats=career&group=${grp}`).then(r=>r.json()),
-      fetch(`${API}/people/${id}/stats?stats=yearByYear&group=${grp}&sportId=1`).then(r=>r.json())
+      mlbFetch(`${API}/people/${id}/stats?stats=career&group=${grp}`),
+      mlbFetch(`${API}/people/${id}/stats?stats=yearByYear&group=${grp}&sportId=1`)
     ]);
     S.careerStats=(cr.stats||[])[0]?.splits?.[0]?.stat||null;
     S.ybyStats=((yby.stats||[])[0]?.splits||[]).filter(s=>s.sport?.id===1).map(s=>({
@@ -122,8 +137,7 @@ async function fetchVsTeam(id){
   S.loading.vsTeam=true;render();
   try{
     const grp=S.playerType==="pitcher"?"pitching":"hitting";
-    const r=await fetch(`${API}/people/${id}/stats?stats=vsTeamTotal&group=${grp}`);
-    const d=await r.json();
+    const d=await mlbFetch(`${API}/people/${id}/stats?stats=vsTeamTotal&group=${grp}`);
     S.vsTeamStats=((d.stats||[])[0]?.splits||[]).map(s=>({
       team:s.opponent?.abbreviation||s.team?.abbreviation||"",
       teamName:s.opponent?.name||s.team?.name||"",
@@ -142,8 +156,7 @@ async function fetchVsTeam(id){
 async function searchVsPlayer(q){
   if(q.length<2){S.vsPlayerResults=[];render();return}
   try{
-    const r=await fetch(`${API}/people/search?names=${encodeURIComponent(q)}&sportId=1&limit=8`);
-    const d=await r.json();
+    const d=await mlbFetch(`${API}/people/search?names=${encodeURIComponent(q)}&sportId=1&limit=8`);
     S.vsPlayerResults=(d.people||[]).map(p=>({
       id:p.id,name:p.fullName,pos:p.primaryPosition?.abbreviation||"",
       team:p.currentTeam?.abbreviation||""
@@ -156,8 +169,7 @@ async function fetchVsPlayer(playerId,opposingId){
   S.loading.vsPlayer=true;S.vsPlayerResults=[];render();
   try{
     const grp=S.playerType==="pitcher"?"pitching":"hitting";
-    const r=await fetch(`${API}/people/${playerId}/stats?stats=vsPlayer&group=${grp}&opposingPlayerId=${opposingId}`);
-    const d=await r.json();
+    const d=await mlbFetch(`${API}/people/${playerId}/stats?stats=vsPlayer&group=${grp}&opposingPlayerId=${opposingId}`);
     const splits=(d.stats||[])[0]?.splits||[];
     S.vsPlayerStats=splits.length>0?splits[0].stat:null;
   }catch(e){console.error(e);S.vsPlayerStats=null}
@@ -317,7 +329,17 @@ function render(){
   if(vts)vts.addEventListener("change",e=>{
     S.vsTeamId=e.target.value?parseInt(e.target.value):null;
     S.vsTeamName=e.target.options[e.target.selectedIndex]?.text||"";
-    fetchVsTeam(S.player.id);
+    if(S.vsTeamAllData){
+      if(S.vsTeamId){
+        S.vsTeamStats=S.vsTeamAllData.filter(s=>s.teamId===S.vsTeamId);
+      }else{
+        S.vsTeamStats=[...S.vsTeamAllData];
+      }
+      S.vsTeamStats.sort((a,b)=>(parseInt(b.stat?.gamesPlayed)||0)-(parseInt(a.stat?.gamesPlayed)||0));
+      render();
+    }else{
+      fetchVsTeam(S.player.id);
+    }
   });
   const vps=document.getElementById("vsPlayerSearch");
   if(vps){
