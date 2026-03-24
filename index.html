@@ -111,13 +111,17 @@ td.push{color:#9ca3af;font-weight:700}
 <div id="app"><div class="loading"><div style="font-size:32px;animation:bounce .8s ease-in-out infinite">⚾</div><div style="color:#6b8f7b;font-size:14px">Loading dashboard...</div></div></div>
 <script>
 // === CONFIG ===
-const SHEET_ID="1AAwSwFCGIqS6JGdYTdkSau91BtnM_sMdWl2By5A9nFQ"; // Replace with your MLB_Dashboard_Data sheet ID
+const SHEET_ID="YOUR_GOOGLE_SHEET_ID_HERE"; // Replace with your MLB_Dashboard_Data sheet ID
 const METRICS=["H","HR","RBI","R","SB","SO","BB","TB","2B","DK_FP"];
+const P_METRICS=["IP","SO","ER","H","HR","BB","DK_FP","PC","W","L"];
 const MLB_API="https://statsapi.mlb.com/api/v1";
 
 // === STATE ===
 let st={
   tonight:[],gameLogs:[],splits:[],weather:[],pitchers:[],schedule:[],
+  // Pitcher data
+  pTonight:[],pGameLogs:[],pSplits:[],
+  mode:"batter", // "batter" or "pitcher"
   player:"",metric:"H",line:"",activeTab:"dashboard",oppFilter:"",
   loading:true,error:null,
   // Lookup state
@@ -162,6 +166,15 @@ async function mlbFetch(url){
 
 // === TAB SWITCHING ===
 function switchTab(t){st.activeTab=t;render()}
+function switchMode(m){
+  st.mode=m;
+  st.metric=m==="pitcher"?"SO":"H";
+  st.line="";st.oppFilter="";
+  // Set default player for new mode
+  if(m==="pitcher"&&st.pTonight.length>0)st.player=st.pTonight[0].player_name||"";
+  if(m==="batter"&&st.tonight.length>0)st.player=st.tonight[0].player_name||"";
+  render();
+}
 
 // === RENDER ===
 function render(){
@@ -170,20 +183,27 @@ function render(){
   if(st.loading){app.innerHTML=`<div class="loading"><div style="font-size:32px;animation:bounce .8s ease-in-out infinite">⚾</div><div style="color:#6b8f7b;font-size:14px">Loading dashboard...</div></div>`;return}
   if(st.error){app.innerHTML=`<div class="error">⚠️ ${st.error}<br><br><span style="color:#6b8f7b;font-size:12px">Make sure your Google Sheet is set to "Anyone with the link can view"</span></div>`;return}
 
+  const isPitcher=st.mode==="pitcher";
+  const curMetrics=isPitcher?P_METRICS:METRICS;
   const {tonight,gameLogs,player,metric,line,activeTab,oppFilter,splits,weather,pitchers}=st;
+  const curTonight=isPitcher?st.pTonight:tonight;
+  const curLogs=isPitcher?st.pGameLogs:gameLogs;
+  const curSplits=isPitcher?st.pSplits:splits;
   const lineNum=parseFloat(line)||0;
 
   // Player data
-  const playerTonight=tonight.find(t=>t.player_name===player)||{};
-  const allLogs=gameLogs.filter(g=>g.player_name===player).sort((a,b)=>b.game_date?.localeCompare(a.game_date));
+  const playerTonight=curTonight.find(t=>t.player_name===player)||{};
+  const allLogs=curLogs.filter(g=>g.player_name===player).sort((a,b)=>b.game_date?.localeCompare(a.game_date));
   const last10=[...allLogs].reverse().slice(-10);
   const most=allLogs[0]||{};
 
   // Averages
   const seasAvg=toNum(most[`Seas_${metric}`]);
-  const l30Avg=toNum(most[`L30_${metric}`]);
-  const l7Avg=toNum(most[`L7_${metric}`]);
+  const midAvg=isPitcher?toNum(most[`L7_${metric}`]):toNum(most[`L30_${metric}`]);
+  const shortAvg=isPitcher?toNum(most[`L3_${metric}`]):toNum(most[`L7_${metric}`]);
   const lastGame=toNum(most[metric]);
+  const midLabel=isPitcher?"L7":"L30";
+  const shortLabel=isPitcher?"L3":"L7";
 
   // Hit rates
   const hitsL5=lineNum?allLogs.slice(0,5).filter(g=>toNum(g[metric])>lineNum).length:null;
@@ -194,9 +214,9 @@ function render(){
   const maxLog=Math.max(...last10.map(g=>toNum(g[metric])),lineNum||0,1);
 
   // Player dropdown
-  const sortedPlayers=[...tonight].sort((a,b)=>(a.player_name||"").localeCompare(b.player_name||""));
+  const sortedPlayers=[...curTonight].sort((a,b)=>(a.player_name||"").localeCompare(b.player_name||""));
   const playerOpts=sortedPlayers.map(t=>`<option value="${esc(t.player_name)}" ${t.player_name===player?"selected":""}>${esc(t.player_name)} (${esc(t.team_abbr||"")})</option>`).join("");
-  const metricOpts=METRICS.map(m=>`<option value="${m}" ${m===metric?"selected":""}>${m}</option>`).join("");
+  const metricOpts=curMetrics.map(m=>`<option value="${m}" ${m===metric?"selected":""}>${m}</option>`).join("");
 
   // Bars
   const bars=last10.map(g=>{
@@ -207,22 +227,39 @@ function render(){
   }).join("");
 
   // Avg cards
-  const avgs=[{l:"Season",v:seasAvg},{l:"L30",v:l30Avg},{l:"L7",v:l7Avg},{l:"Last",v:lastGame}].map(a=>
+  const avgs=[{l:"Season",v:seasAvg},{l:midLabel,v:midAvg},{l:shortLabel,v:shortAvg},{l:"Last",v:lastGame}].map(a=>
     `<div class="avg-card" style="border:1px solid ${lineNum&&a.v>=lineNum?"#22c55e44":lineNum?"#ef444433":"#2d5a3d"}"><div class="avg-label">${a.l}</div><div class="avg-val" style="color:${avgColor(a.v,lineNum)}">${a.v.toFixed(2)}</div></div>`
   ).join("");
 
-  // Stats strip — season totals, not averages
+  // Stats strip — season totals
   const seasTotals={};
-  ["H","HR","RBI","R","SB","BB","TB","SO","AB"].forEach(s=>{
-    seasTotals[s]=allLogs.reduce((sum,g)=>sum+toNum(g[s]),0);
-  });
-  seasTotals["AVG"]=seasTotals.AB>0?(seasTotals.H/seasTotals.AB).toFixed(3):".000";
-  seasTotals["DK_FP"]=allLogs.reduce((sum,g)=>sum+toNum(g["DK_FP"]),0).toFixed(1);
-  const stripStats=["H","HR","RBI","R","SB","BB","TB","DK_FP","AVG"];
-  const statStrip=stripStats.map(s=>{
-    const val=s==="AVG"?seasTotals.AVG:s==="DK_FP"?seasTotals.DK_FP:seasTotals[s];
-    return`<div class="stat-item"><div class="stat-label">${s}</div><div class="stat-val">${val}</div></div>`;
-  }).join("");
+  let statStrip="";
+  if(isPitcher){
+    ["IP","SO","ER","H","HR","BB","W","L","PC","R"].forEach(s=>{
+      seasTotals[s]=allLogs.reduce((sum,g)=>sum+toNum(g[s]),0);
+    });
+    seasTotals["DK_FP"]=allLogs.reduce((sum,g)=>sum+toNum(g["DK_FP"]),0).toFixed(1);
+    // Convert IP from base-3 to real innings
+    const totalOuts=allLogs.reduce((sum,g)=>{const p=g.IP?.toString().split(".")||["0"];return sum+(parseInt(p[0])||0)*3+(parseInt(p[1])||0)},0);
+    const realIP=totalOuts/3;
+    seasTotals["IP"]=realIP.toFixed(1);
+    seasTotals["ERA"]=realIP>0?((seasTotals.ER*9)/realIP).toFixed(2):"0.00";
+    seasTotals["WHIP"]=realIP>0?(((seasTotals.H||0)+(seasTotals.BB||0))/realIP).toFixed(2):"0.00";
+    seasTotals["K9"]=realIP>0?((seasTotals.SO*9)/realIP).toFixed(1):"0.0";
+    const pStripStats=["W","L","ERA","WHIP","SO","K9","IP","DK_FP"];
+    statStrip=pStripStats.map(s=>`<div class="stat-item"><div class="stat-label">${s}</div><div class="stat-val">${seasTotals[s]}</div></div>`).join("");
+  }else{
+    ["H","HR","RBI","R","SB","BB","TB","SO","AB"].forEach(s=>{
+      seasTotals[s]=allLogs.reduce((sum,g)=>sum+toNum(g[s]),0);
+    });
+    seasTotals["AVG"]=seasTotals.AB>0?(seasTotals.H/seasTotals.AB).toFixed(3):".000";
+    seasTotals["DK_FP"]=allLogs.reduce((sum,g)=>sum+toNum(g["DK_FP"]),0).toFixed(1);
+    const bStripStats=["H","HR","RBI","R","SB","BB","TB","DK_FP","AVG"];
+    statStrip=bStripStats.map(s=>{
+      const val=s==="AVG"?seasTotals.AVG:s==="DK_FP"?seasTotals.DK_FP:seasTotals[s];
+      return`<div class="stat-item"><div class="stat-label">${s}</div><div class="stat-val">${val}</div></div>`;
+    }).join("");
+  }
 
   // Pitcher matchup
   const oppPitcher=playerTonight.opp_pitcher_name||"TBD";
@@ -232,12 +269,12 @@ function render(){
   const vsHr=toNum(playerTonight.vs_OPP_HR);
   const vsSo=toNum(playerTonight.vs_OPP_SO);
 
-  // Weather
+  // Weather — use venue from current mode
   const venue=playerTonight.venue_tonight||"";
-  const wx=weather.find(w=>w.venue_name===venue)||{};
+  const wx=st.weather.find(w=>w.venue_name===venue)||{};
 
   // Home/Away
-  const split=splits.find(s=>s.player_name===player)||{};
+  const split=curSplits.find(s=>s.player_name===player)||{};
   const homeVal=toNum(split[`${metric}_Home`]);
   const awayVal=toNum(split[`${metric}_Away`]);
   let haBars=`<div class="no-data">No data</div>`;
@@ -254,7 +291,7 @@ function render(){
   const opponents=[...new Set(allLogs.map(g=>g.opp_abbr).filter(Boolean))].sort();
   const oppOptions=`<option value="">All Opponents</option>`+opponents.map(o=>`<option value="${o}" ${oppFilter===o?"selected":""}>${o}</option>`).join("");
   const filteredLogs=oppFilter?allLogs.filter(g=>g.opp_abbr===oppFilter):allLogs;
-  const logCols=["AB","H","HR","RBI","R","SB","BB","SO","TB","DK_FP"];
+  const logCols=isPitcher?["IP","H","ER","HR","SO","BB","PC","W","L","DK_FP"]:["AB","H","HR","RBI","R","SB","BB","SO","TB","DK_FP"];
   const tableHeaders=logCols.map(c=>`<th class="${c===metric?"hl":""}">${c}</th>`).join("");
   const tableRows=filteredLogs.map(g=>{
     const cells=logCols.map(col=>{
@@ -323,6 +360,10 @@ function render(){
   <div class="header">
     <div class="header-title">⚾ MLB DFS Dashboard</div>
     ${activeTab==="dashboard"||activeTab==="gamelog"?`
+    <div class="row" style="margin-top:0;margin-bottom:8px">
+      <div onclick="switchMode('batter')" style="flex:1;padding:6px;text-align:center;font-size:12px;font-weight:700;border-radius:6px;cursor:pointer;${st.mode==='batter'?'background:#22c55e;color:#0f291a':'background:#1a3d2a;color:#6b8f7b;border:1px solid #2d5a3d'}">🏏 Batters</div>
+      <div onclick="switchMode('pitcher')" style="flex:1;padding:6px;text-align:center;font-size:12px;font-weight:700;border-radius:6px;cursor:pointer;${st.mode==='pitcher'?'background:#22c55e;color:#0f291a':'background:#1a3d2a;color:#6b8f7b;border:1px solid #2d5a3d'}">⚾ Pitchers</div>
+    </div>
     <select id="playerSel">${playerOpts}</select>
     <div class="row">
       <select id="metricSel">${metricOpts}</select>
@@ -336,6 +377,16 @@ function render(){
     <div class="section"><div class="label">Game Log — ${metric}</div><div class="bar-chart">${bars}</div>${lineNum?`<div class="line-indicator">Line: ${lineNum}</div>`:""}</div>
     <div class="section"><div class="label">Averages</div><div class="avg-cards">${avgs}</div></div>
     <div class="section"><div class="split-row">
+      ${isPitcher?`
+      <div class="split-card"><span class="split-title">Season Rates</span>
+        <div class="matchup-stats">
+          <div class="matchup-stat"><div class="val">${seasTotals.ERA||"—"}</div><div class="lbl">ERA</div></div>
+          <div class="matchup-stat"><div class="val">${seasTotals.WHIP||"—"}</div><div class="lbl">WHIP</div></div>
+          <div class="matchup-stat"><div class="val">${seasTotals.K9||"—"}</div><div class="lbl">K/9</div></div>
+          <div class="matchup-stat"><div class="val">${seasTotals.SO||"—"}</div><div class="lbl">K</div></div>
+        </div>
+      </div>
+      `:`
       <div class="split-card"><span class="split-title">vs ${oppHand}HP Splits</span>
         <div class="matchup-stats">
           <div class="matchup-stat"><div class="val">${vsAvg?vsAvg.toFixed(3):"—"}</div><div class="lbl">AVG</div></div>
@@ -344,11 +395,17 @@ function render(){
           <div class="matchup-stat"><div class="val">${vsSo||"—"}</div><div class="lbl">SO</div></div>
         </div>
       </div>
+      `}
       <div class="split-card"><span class="split-title">Home / Away</span><div class="mini-bars-container">${haBars}</div></div>
     </div></div>
     <div class="section"><div class="matchup-card">
+      ${isPitcher?`
+      <div class="matchup-header">⚾ vs ${playerTonight.opp_abbr_tonight||"—"}</div>
+      <div class="matchup-sub">${playerTonight.home_away_tonight||"—"} · ${playerTonight.venue_tonight||"—"} · vs ${playerTonight.opp_starter||"TBD"}</div>
+      `:`
       <div class="matchup-header">⚾ vs ${oppPitcher}</div>
       <div class="matchup-sub">${playerTonight.opp_abbr_tonight||"—"} · ${oppHand}HP · ${venue}</div>
+      `}
     </div></div>
     ${wx.temp_f?`<div class="section"><div class="weather-card"><div class="card-title">🌤️ Weather</div>
       <div class="weather-row"><span class="weather-key">Temperature</span><span class="weather-val">${wx.temp_f}°F (feels ${wx.feels_like_f}°F)</span></div>
@@ -511,18 +568,23 @@ async function loadTeams(){
   const yr=new Date().getMonth()>=3?new Date().getFullYear():new Date().getFullYear()-1;
   try{const d=await mlbFetch(`${MLB_API}/teams?sportId=1&season=${yr}`);st.lkTeamList=(d.teams||[]).map(t=>({id:t.id,name:t.name,abbr:t.abbreviation}))}catch(e){}
 }
-loadTeams();
 
 Promise.all([
-  fetchSheet("Tonights_Batters"),
-  fetchSheet("Batter_Game_Logs"),
+  loadTeams(),
+  fetchSheet("Tonights_Batters").catch(()=>[]),
+  fetchSheet("Batter_Game_Logs").catch(()=>[]),
   fetchSheet("Home_Away_Splits").catch(()=>[]),
   fetchSheet("Venue_Weather").catch(()=>[]),
   fetchSheet("Tonights_Pitchers").catch(()=>[]),
-  fetchSheet("Tonights_Schedule").catch(()=>[])
-]).then(([tonight,logs,splits,weather,pitchers,schedule])=>{
+  fetchSheet("Tonights_Schedule").catch(()=>[]),
+  fetchSheet("Tonights_Starters").catch(()=>[]),
+  fetchSheet("Pitcher_Game_Logs").catch(()=>[]),
+  fetchSheet("Pitcher_Home_Away").catch(()=>[])
+]).then(([_teams,tonight,logs,splits,weather,pitchers,schedule,pTonight,pLogs,pSplits])=>{
   st.tonight=tonight;st.gameLogs=logs;st.splits=splits;st.weather=weather;
-  st.pitchers=pitchers;st.schedule=schedule;st.loading=false;
+  st.pitchers=pitchers;st.schedule=schedule;
+  st.pTonight=pTonight;st.pGameLogs=pLogs;st.pSplits=pSplits;
+  st.loading=false;
   if(tonight.length>0)st.player=tonight[0].player_name||"";
   render();
 }).catch(err=>{
