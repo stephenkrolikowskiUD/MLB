@@ -139,6 +139,19 @@ const fetchSheet=(name)=>new Promise((res,rej)=>{
 const toNum=v=>parseFloat(v)||0;
 const barColor=(val,line)=>!line?"#4ade80":val>line?"#22c55e":"#ef4444";
 const avgColor=(val,line)=>!line?"#4ade80":val>=line?"#4ade80":"#f97316";
+const esc=s=>{if(!s)return"";return String(s).replace(/[&<>'"]/g,t=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[t]))};
+
+// Focus preservation — save and restore after render
+function saveFocus(){
+  const el=document.activeElement;
+  if(el&&el.id){return{id:el.id,pos:el.selectionStart,val:el.value}}
+  return null;
+}
+function restoreFocus(f){
+  if(!f)return;
+  const el=document.getElementById(f.id);
+  if(el){el.focus();if(f.val!==undefined)el.value=f.val;if(el.setSelectionRange&&f.pos!==undefined)try{el.setSelectionRange(f.pos,f.pos)}catch(e){}}
+}
 
 // === MLB API FETCH (with CORS fallback) ===
 let useProxy=false;
@@ -152,6 +165,7 @@ function switchTab(t){st.activeTab=t;render()}
 
 // === RENDER ===
 function render(){
+  const focus=saveFocus();
   const app=document.getElementById("app");
   if(st.loading){app.innerHTML=`<div class="loading"><div style="font-size:32px;animation:bounce .8s ease-in-out infinite">⚾</div><div style="color:#6b8f7b;font-size:14px">Loading dashboard...</div></div>`;return}
   if(st.error){app.innerHTML=`<div class="error">⚠️ ${st.error}<br><br><span style="color:#6b8f7b;font-size:12px">Make sure your Google Sheet is set to "Anyone with the link can view"</span></div>`;return}
@@ -181,7 +195,7 @@ function render(){
 
   // Player dropdown
   const sortedPlayers=[...tonight].sort((a,b)=>(a.player_name||"").localeCompare(b.player_name||""));
-  const playerOpts=sortedPlayers.map(t=>`<option value="${t.player_name}" ${t.player_name===player?"selected":""}>${t.player_name} (${t.team_abbr||""})</option>`).join("");
+  const playerOpts=sortedPlayers.map(t=>`<option value="${esc(t.player_name)}" ${t.player_name===player?"selected":""}>${esc(t.player_name)} (${esc(t.team_abbr||"")})</option>`).join("");
   const metricOpts=METRICS.map(m=>`<option value="${m}" ${m===metric?"selected":""}>${m}</option>`).join("");
 
   // Bars
@@ -382,6 +396,7 @@ function render(){
   if(vts)vts.onchange=e=>{st.lkVsTeamId=e.target.value?parseInt(e.target.value):null;fetchLkVsTeam(st.lkPlayer.id,st.lkVsTeamId)};
   const vpi=document.getElementById("vsPlayerInput");
   if(vpi)vpi.oninput=e=>{clearTimeout(window._vpT);window._vpT=setTimeout(()=>searchVsP(e.target.value),300)};
+  restoreFocus(focus);
 }
 
 // === LOOKUP FUNCTIONS ===
@@ -437,6 +452,7 @@ async function fetchLkVsTeam(id,teamId){
           }catch(e){}return null;
         });
         results.push(...(await Promise.all(pr)).filter(Boolean));
+        if(i+10<st.lkTeamList.length)await new Promise(r=>setTimeout(r,500));
       }
       st.lkVsTeamStats=results;
     }
@@ -483,7 +499,8 @@ function switchLkSub(t){
 
 // === LOAD DATA ===
 async function loadTeams(){
-  try{const d=await mlbFetch(`${MLB_API}/teams?sportId=1&season=2025`);st.lkTeamList=(d.teams||[]).map(t=>({id:t.id,name:t.name,abbr:t.abbreviation}))}catch(e){}
+  const yr=new Date().getMonth()>=3?new Date().getFullYear():new Date().getFullYear()-1;
+  try{const d=await mlbFetch(`${MLB_API}/teams?sportId=1&season=${yr}`);st.lkTeamList=(d.teams||[]).map(t=>({id:t.id,name:t.name,abbr:t.abbreviation}))}catch(e){}
 }
 loadTeams();
 
