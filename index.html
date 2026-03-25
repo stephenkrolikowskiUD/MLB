@@ -111,7 +111,7 @@ td.push{color:#9ca3af;font-weight:700}
 <div id="app"><div class="loading"><div style="font-size:32px;animation:bounce .8s ease-in-out infinite">⚾</div><div style="color:#6b8f7b;font-size:14px">Loading dashboard...</div></div></div>
 <script>
 // === CONFIG ===
-const SHEET_ID="YOUR_GOOGLE_SHEET_ID_HERE"; // Replace with your MLB_Dashboard_Data sheet ID
+const SHEET_ID="1AAwSwFCGIqS6JGdYTdkSau91BtnM_sMdWl2By5A9nFQ"; // Replace with your MLB_Dashboard_Data sheet ID
 const METRICS=["H","HR","RBI","R","SB","SO","BB","TB","2B","DK_FP"];
 const P_METRICS=["IP","SO","ER","H","HR","BB","DK_FP","PC","W","L"];
 const MLB_API="https://statsapi.mlb.com/api/v1";
@@ -474,7 +474,7 @@ function render(){
   // === EVENT LISTENERS ===
   const ps=document.getElementById("dashPlayerSearch");
   if(ps){
-    ps.onfocus=e=>{st.playerSearch="";st.showPlayerSugs=false;e.target.value="";};
+    ps.onfocus=e=>{st.playerSearch="";st.showPlayerSugs=false;render()};
     ps.oninput=e=>filterPlayerSugs(e.target.value);
     ps.onblur=e=>{setTimeout(()=>{st.showPlayerSugs=false;st.playerSearch="";render()},200)};
   }
@@ -608,8 +608,8 @@ async function loadTeams(){
 
 Promise.all([
   loadTeams(),
-  fetchSheet("Tonights_Batters").catch(()=>[]),
-  fetchSheet("Batter_Game_Logs").catch(()=>[]),
+  fetchSheet("Tonights_Batters"),
+  fetchSheet("Batter_Game_Logs"),
   fetchSheet("Home_Away_Splits").catch(()=>[]),
   fetchSheet("Venue_Weather").catch(()=>[]),
   fetchSheet("Tonights_Pitchers").catch(()=>[]),
