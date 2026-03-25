@@ -111,7 +111,7 @@ td.push{color:#9ca3af;font-weight:700}
 <div id="app"><div class="loading"><div style="font-size:32px;animation:bounce .8s ease-in-out infinite">⚾</div><div style="color:#6b8f7b;font-size:14px">Loading dashboard...</div></div></div>
 <script>
 // === CONFIG ===
-const SHEET_ID="1AAwSwFCGIqS6JGdYTdkSau91BtnM_sMdWl2By5A9nFQ"; // Replace with your MLB_Dashboard_Data sheet ID
+const SHEET_ID="YOUR_GOOGLE_SHEET_ID_HERE"; // Replace with your MLB_Dashboard_Data sheet ID
 const METRICS=["H","HR","RBI","R","SB","SO","BB","TB","2B","DK_FP"];
 const P_METRICS=["IP","SO","ER","H","HR","BB","DK_FP","PC","W","L"];
 const MLB_API="https://statsapi.mlb.com/api/v1";
@@ -123,6 +123,7 @@ let st={
   pTonight:[],pGameLogs:[],pSplits:[],
   mode:"batter", // "batter" or "pitcher"
   player:"",metric:"H",line:"",activeTab:"dashboard",oppFilter:"",
+  playerSearch:"",playerSuggestions:[],showPlayerSugs:false,
   loading:true,error:null,
   // Lookup state
   lkPlayer:null,lkResults:[],lkSubTab:"career",lkPlayerType:"batter",
@@ -169,10 +170,30 @@ function switchTab(t){st.activeTab=t;render()}
 function switchMode(m){
   st.mode=m;
   st.metric=m==="pitcher"?"SO":"H";
-  st.line="";st.oppFilter="";
+  st.line="";st.oppFilter="";st.playerSearch="";st.playerSuggestions=[];st.showPlayerSugs=false;
   // Set default player for new mode
   if(m==="pitcher"&&st.pTonight.length>0)st.player=st.pTonight[0].player_name||"";
   if(m==="batter"&&st.tonight.length>0)st.player=st.tonight[0].player_name||"";
+  render();
+}
+
+function filterPlayerSugs(q){
+  if(q.length<1){st.playerSuggestions=[];st.showPlayerSugs=false;render();return}
+  const isPitcher=st.mode==="pitcher";
+  const source=isPitcher?st.pTonight:st.tonight;
+  const matches=source.filter(p=>(p.player_name||"").toLowerCase().includes(q.toLowerCase())).slice(0,8);
+  st.playerSuggestions=matches;
+  st.showPlayerSugs=matches.length>0;
+  st.playerSearch=q;
+  render();
+}
+
+function pickDashPlayer(name){
+  st.player=name;
+  st.playerSearch="";
+  st.playerSuggestions=[];
+  st.showPlayerSugs=false;
+  st.oppFilter="";
   render();
 }
 
@@ -364,7 +385,10 @@ function render(){
       <div onclick="switchMode('batter')" style="flex:1;padding:6px;text-align:center;font-size:12px;font-weight:700;border-radius:6px;cursor:pointer;${st.mode==='batter'?'background:#22c55e;color:#0f291a':'background:#1a3d2a;color:#6b8f7b;border:1px solid #2d5a3d'}">🏏 Batters</div>
       <div onclick="switchMode('pitcher')" style="flex:1;padding:6px;text-align:center;font-size:12px;font-weight:700;border-radius:6px;cursor:pointer;${st.mode==='pitcher'?'background:#22c55e;color:#0f291a':'background:#1a3d2a;color:#6b8f7b;border:1px solid #2d5a3d'}">⚾ Pitchers</div>
     </div>
-    <select id="playerSel">${playerOpts}</select>
+    <div class="search-wrap">
+      <input type="text" id="dashPlayerSearch" placeholder="Search ${st.mode==='pitcher'?'pitcher':'batter'}..." value="${esc(st.showPlayerSugs?st.playerSearch:st.player)}" autocomplete="off"/>
+      ${st.showPlayerSugs?`<div class="suggestions" style="display:block">${st.playerSuggestions.map(p=>`<div class="sug-item" onclick="pickDashPlayer('${esc(p.player_name)}')"><div class="sug-name">${esc(p.player_name)}</div><div class="sug-meta">${esc(p.team_abbr||"")}</div></div>`).join("")}</div>`:""}
+    </div>
     <div class="row">
       <select id="metricSel">${metricOpts}</select>
       <input type="number" id="lineInput" value="${line}" placeholder="Enter Line" step="0.5"/>
@@ -448,8 +472,12 @@ function render(){
   </div>`;
 
   // === EVENT LISTENERS ===
-  const ps=document.getElementById("playerSel");
-  if(ps)ps.onchange=e=>{st.player=e.target.value;st.oppFilter="";render()};
+  const ps=document.getElementById("dashPlayerSearch");
+  if(ps){
+    ps.onfocus=e=>{st.playerSearch="";st.showPlayerSugs=false;e.target.value="";};
+    ps.oninput=e=>filterPlayerSugs(e.target.value);
+    ps.onblur=e=>{setTimeout(()=>{st.showPlayerSugs=false;st.playerSearch="";render()},200)};
+  }
   const ms=document.getElementById("metricSel");
   if(ms)ms.onchange=e=>{st.metric=e.target.value;render()};
   const li=document.getElementById("lineInput");
@@ -482,6 +510,15 @@ function pickLkPlayer(i){
   st.lkCareer=null;st.lkYby=null;st.lkVsTeamStats=null;st.lkVsPlayerStats=null;
   st.lkVsPlayerId=null;st.lkVsPlayerName="";st.lkVsTeamId=null;
   st.lkPlayerType=["P","TWP"].includes(p.pos)?"pitcher":"batter";
+  // Also update Dashboard — link all tabs
+  const isPitcher=["P","TWP"].includes(p.pos);
+  const source=isPitcher?st.pTonight:st.tonight;
+  const match=source.find(t=>(t.player_name||"").toLowerCase()===p.name.toLowerCase());
+  if(match){
+    st.player=match.player_name;
+    if(isPitcher&&st.mode!=="pitcher"){st.mode="pitcher";st.metric="SO"}
+    if(!isPitcher&&st.mode!=="batter"){st.mode="batter";st.metric="H"}
+  }
   render();fetchLkCareer(p.id);
 }
 async function fetchLkCareer(id){
