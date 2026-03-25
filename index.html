@@ -178,13 +178,18 @@ function switchMode(m){
 }
 
 function filterPlayerSugs(q){
-  if(q.length<1){st.playerSuggestions=[];st.showPlayerSugs=false;render();return}
+  st.playerSearch=q;
+  if(q.length<1){
+    st.playerSuggestions=[];
+    st.showPlayerSugs=false;
+    render();
+    return;
+  }
   const isPitcher=st.mode==="pitcher";
   const source=isPitcher?st.pTonight:st.tonight;
   const matches=source.filter(p=>(p.player_name||"").toLowerCase().includes(q.toLowerCase())).slice(0,8);
   st.playerSuggestions=matches;
-  st.showPlayerSugs=matches.length>0;
-  st.playerSearch=q;
+  st.showPlayerSugs=true;
   render();
 }
 
