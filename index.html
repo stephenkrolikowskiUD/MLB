@@ -82,6 +82,11 @@ td.hl{color:#4ade80;font-weight:700}
 td.hit{color:#22c55e;font-weight:700}
 td.miss{color:#ef4444;font-weight:700}
 td.push{color:#9ca3af;font-weight:700}
+/* Early-season banner */
+.early-banner{background:#1a3d2a;border:1px solid #2d5a3d;border-radius:10px;padding:14px;margin:14px 16px 0;text-align:center}
+.early-banner .icon{font-size:20px;margin-bottom:4px}
+.early-banner .msg{color:#86efac;font-size:12px;font-weight:600}
+.early-banner .sub{color:#6b8f7b;font-size:11px;margin-top:4px}
 /* Lookup styles */
 .search-wrap{position:relative}
 .suggestions{position:absolute;top:100%;left:0;right:0;background:#1a3d2a;border:1px solid #2d5a3d;border-top:none;border-radius:0 0 8px 8px;max-height:220px;overflow-y:auto;z-index:20;display:none}
@@ -119,13 +124,11 @@ const MLB_API="https://statsapi.mlb.com/api/v1";
 // === STATE ===
 let st={
   tonight:[],gameLogs:[],splits:[],weather:[],pitchers:[],schedule:[],
-  // Pitcher data
   pTonight:[],pGameLogs:[],pSplits:[],
-  mode:"batter", // "batter" or "pitcher"
+  mode:"batter",
   player:"",metric:"H",line:"",activeTab:"dashboard",oppFilter:"",
   playerSearch:"",playerSuggestions:[],showPlayerSugs:false,
   loading:true,error:null,
-  // Lookup state
   lkPlayer:null,lkResults:[],lkSubTab:"career",lkPlayerType:"batter",
   lkCareer:null,lkYby:null,lkVsTeamStats:null,lkVsPlayerId:null,
   lkVsPlayerName:"",lkVsPlayerResults:[],lkVsPlayerStats:null,
@@ -146,7 +149,13 @@ const barColor=(val,line)=>!line?"#4ade80":val>line?"#22c55e":"#ef4444";
 const avgColor=(val,line)=>!line?"#4ade80":val>=line?"#4ade80":"#f97316";
 const esc=s=>{if(!s)return"";return String(s).replace(/[&<>'"]/g,t=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[t]))};
 
-// Focus preservation — save and restore after render
+// Check if a player has game log data (not roster-only)
+function hasGameLogs(playerName,isPitcher){
+  const logs=isPitcher?st.pGameLogs:st.gameLogs;
+  return logs.some(g=>g.player_name===playerName);
+}
+
+// Focus preservation
 function saveFocus(){
   const el=document.activeElement;
   if(el&&el.id){return{id:el.id,pos:el.selectionStart,val:el.value}}
@@ -171,7 +180,6 @@ function switchMode(m){
   st.mode=m;
   st.metric=m==="pitcher"?"SO":"H";
   st.line="";st.oppFilter="";st.playerSearch="";st.playerSuggestions=[];st.showPlayerSugs=false;
-  // Set default player for new mode
   if(m==="pitcher"&&st.pTonight.length>0)st.player=st.pTonight[0].player_name||"";
   if(m==="batter"&&st.tonight.length>0)st.player=st.tonight[0].player_name||"";
   render();
@@ -219,6 +227,7 @@ function render(){
 
   // Player data
   const playerTonight=curTonight.find(t=>t.player_name===player)||{};
+  const playerHasLogs=hasGameLogs(player,isPitcher);
   const allLogs=curLogs.filter(g=>g.player_name===player).sort((a,b)=>b.game_date?.localeCompare(a.game_date));
   const last10=[...allLogs].reverse().slice(-10);
   const most=allLogs[0]||{};
@@ -265,7 +274,6 @@ function render(){
       seasTotals[s]=allLogs.reduce((sum,g)=>sum+toNum(g[s]),0);
     });
     seasTotals["DK_FP"]=allLogs.reduce((sum,g)=>sum+toNum(g["DK_FP"]),0).toFixed(1);
-    // Convert IP from base-3 to real innings
     const totalOuts=allLogs.reduce((sum,g)=>{const p=g.IP?.toString().split(".")||["0"];return sum+(parseInt(p[0])||0)*3+(parseInt(p[1])||0)},0);
     const realIP=totalOuts/3;
     seasTotals["IP"]=realIP.toFixed(1);
@@ -295,7 +303,7 @@ function render(){
   const vsHr=toNum(playerTonight.vs_OPP_HR);
   const vsSo=toNum(playerTonight.vs_OPP_SO);
 
-  // Weather — use venue from current mode
+  // Weather
   const venue=playerTonight.venue_tonight||"";
   const wx=st.weather.find(w=>w.venue_name===venue)||{};
 
@@ -312,6 +320,14 @@ function render(){
   }
 
   const lastUpdated=most.LAST_UPDATED||playerTonight.LAST_UPDATED||"—";
+
+  // Early-season banner for roster-only players
+  const earlyBanner=!playerHasLogs?`
+    <div class="early-banner">
+      <div class="icon">🌱</div>
+      <div class="msg">Early Season — No Game Logs Yet</div>
+      <div class="sub">${esc(player)} is on the active roster but hasn't logged ${isPitcher?"an appearance":"an at-bat"} yet this season. Matchup info and splits from the Lookup tab are still available.</div>
+    </div>`:"";
 
   // Game log table
   const opponents=[...new Set(allLogs.map(g=>g.opp_abbr).filter(Boolean))].sort();
@@ -402,27 +418,28 @@ function render(){
   </div>
 
   <div id="pg-dash" class="page ${activeTab==="dashboard"?"active":""}">
-    <div class="stats-strip"><div class="stats-strip-inner">${statStrip}</div></div>
-    <div class="section"><div class="label">Game Log — ${metric}</div><div class="bar-chart">${bars}</div>${lineNum?`<div class="line-indicator">Line: ${lineNum}</div>`:""}</div>
-    <div class="section"><div class="label">Averages</div><div class="avg-cards">${avgs}</div></div>
+    ${earlyBanner}
+    ${playerHasLogs?`<div class="stats-strip"><div class="stats-strip-inner">${statStrip}</div></div>`:""}
+    ${playerHasLogs?`<div class="section"><div class="label">Game Log — ${metric}</div><div class="bar-chart">${bars}</div>${lineNum?`<div class="line-indicator">Line: ${lineNum}</div>`:""}</div>`:""}
+    ${playerHasLogs?`<div class="section"><div class="label">Averages</div><div class="avg-cards">${avgs}</div></div>`:""}
     <div class="section"><div class="split-row">
       ${isPitcher?`
       <div class="split-card"><span class="split-title">Season Rates</span>
-        <div class="matchup-stats">
+        ${playerHasLogs?`<div class="matchup-stats">
           <div class="matchup-stat"><div class="val">${seasTotals.ERA||"—"}</div><div class="lbl">ERA</div></div>
           <div class="matchup-stat"><div class="val">${seasTotals.WHIP||"—"}</div><div class="lbl">WHIP</div></div>
           <div class="matchup-stat"><div class="val">${seasTotals.K9||"—"}</div><div class="lbl">K/9</div></div>
           <div class="matchup-stat"><div class="val">${seasTotals.SO||"—"}</div><div class="lbl">K</div></div>
-        </div>
+        </div>`:`<div class="no-data">No stats yet</div>`}
       </div>
       `:`
       <div class="split-card"><span class="split-title">vs ${oppHand}HP Splits</span>
-        <div class="matchup-stats">
+        ${vsAvg||vsOps?`<div class="matchup-stats">
           <div class="matchup-stat"><div class="val">${vsAvg?vsAvg.toFixed(3):"—"}</div><div class="lbl">AVG</div></div>
           <div class="matchup-stat"><div class="val">${vsOps?vsOps.toFixed(3):"—"}</div><div class="lbl">OPS</div></div>
           <div class="matchup-stat"><div class="val">${vsHr||"—"}</div><div class="lbl">HR</div></div>
           <div class="matchup-stat"><div class="val">${vsSo||"—"}</div><div class="lbl">SO</div></div>
-        </div>
+        </div>`:`<div class="no-data">No split data yet</div>`}
       </div>
       `}
       <div class="split-card"><span class="split-title">Home / Away</span><div class="mini-bars-container">${haBars}</div></div>
@@ -440,9 +457,9 @@ function render(){
       <div class="weather-row"><span class="weather-key">Temperature</span><span class="weather-val">${wx.temp_f}°F (feels ${wx.feels_like_f}°F)</span></div>
       <div class="weather-row"><span class="weather-key">Wind</span><span class="weather-val">${wx.wind_mph} mph ${wx.wind_dir}</span></div>
       <div class="weather-row"><span class="weather-key">Condition</span><span class="weather-val">${wx.description||"—"}</span></div>
-      ${wx.is_dome?`<div class="weather-row"><span class="weather-key">🏟️</span><span class="weather-val" style="color:#4ade80">Dome — weather irrelevant</span></div>`:""}
+      ${wx.is_dome===true||wx.is_dome==="TRUE"||wx.is_dome==="True"?`<div class="weather-row"><span class="weather-key">🏟️</span><span class="weather-val" style="color:#4ade80">Dome — weather irrelevant</span></div>`:""}
     </div></div>`:""}
-    ${lineNum?`<div class="section"><div class="card"><div class="card-title">📊 Hit Rates — ${metric} > ${lineNum}</div>
+    ${lineNum&&playerHasLogs?`<div class="section"><div class="card"><div class="card-title">📊 Hit Rates — ${metric} > ${lineNum}</div>
       <div class="hit-row" style="border:none;padding-top:0"><span class="hit-key">L5</span><span class="hit-val">${hitsL5}/5</span></div>
       <div class="hit-row"><span class="hit-key">L10</span><span class="hit-val">${hitsL10}/10</span></div>
       <div class="hit-row"><span class="hit-key">Season</span><span class="hit-val">${hitsSeas}/${allLogs.length} (${seasRate!==null?(seasRate*100).toFixed(0):"—"}%)</span></div>
@@ -452,8 +469,10 @@ function render(){
   </div>
 
   <div id="pg-log" class="page ${activeTab==="gamelog"?"active":""}">
+    ${!playerHasLogs?`<div class="early-banner"><div class="icon">🌱</div><div class="msg">No Game Logs Yet</div><div class="sub">Check the Lookup tab for career stats.</div></div>`:`
     <div class="log-controls"><select id="oppFilter">${oppOptions}</select></div>
     <div class="log-table-wrap"><table><thead><tr><th>DATE</th><th>OPP</th><th>H/A</th>${tableHeaders}</tr></thead><tbody>${tableRows}</tbody></table></div>
+    `}
   </div>
 
   <div id="pg-lookup" class="page ${activeTab==="lookup"?"active":""}">
@@ -515,7 +534,6 @@ function pickLkPlayer(i){
   st.lkCareer=null;st.lkYby=null;st.lkVsTeamStats=null;st.lkVsPlayerStats=null;
   st.lkVsPlayerId=null;st.lkVsPlayerName="";st.lkVsTeamId=null;
   st.lkPlayerType=["P","TWP"].includes(p.pos)?"pitcher":"batter";
-  // Also update Dashboard — link all tabs
   const isPitcher=["P","TWP"].includes(p.pos);
   const source=isPitcher?st.pTonight:st.tonight;
   const match=source.find(t=>(t.player_name||"").toLowerCase()===p.name.toLowerCase());
