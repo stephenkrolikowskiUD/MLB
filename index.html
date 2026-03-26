@@ -196,8 +196,9 @@ function hasGameLogs(playerName,isPitcher){
 }
 function fmtOdds(v){if(!v&&v!==0)return"—";v=parseInt(v);return v>0?`+${v}`:`${v}`}
 function oddsClass(v){if(!v&&v!==0)return"";v=parseInt(v);return v<=-130?"odds-over":v>=130?"odds-under":"odds-even"}
+let _restoring=false;
 function saveFocus(){const el=document.activeElement;if(el&&el.id)return{id:el.id,pos:el.selectionStart,val:el.value};return null}
-function restoreFocus(f){if(!f)return;const el=document.getElementById(f.id);if(el){el.focus();if(f.val!==undefined)el.value=f.val;if(el.setSelectionRange&&f.pos!==undefined)try{el.setSelectionRange(f.pos,f.pos)}catch(e){}}}
+function restoreFocus(f){if(!f)return;const el=document.getElementById(f.id);if(el){_restoring=true;el.focus();if(f.val!==undefined)el.value=f.val;if(el.setSelectionRange&&f.pos!==undefined)try{el.setSelectionRange(f.pos,f.pos)}catch(e){}_restoring=false}}
 
 // Get player's DK props
 function getPlayerProps(name){
@@ -546,7 +547,7 @@ function render(){
 
   // === EVENT LISTENERS ===
   const ps=document.getElementById("dashPlayerSearch");
-  if(ps){ps.onfocus=e=>{e.target.value="";st.playerSearch="";st.showPlayerSugs=false};ps.oninput=e=>filterPlayerSugs(e.target.value);ps.onblur=e=>{setTimeout(()=>{st.showPlayerSugs=false;st.playerSearch="";render()},200)}}
+  if(ps){ps.onfocus=e=>{if(_restoring)return;e.target.value="";st.playerSearch="";st.showPlayerSugs=false};ps.oninput=e=>filterPlayerSugs(e.target.value);ps.onblur=e=>{setTimeout(()=>{st.showPlayerSugs=false;st.playerSearch="";render()},200)}}
   const ms=document.getElementById("metricSel");if(ms)ms.onchange=e=>{st.metric=e.target.value;render()};
   const li=document.getElementById("lineInput");if(li)li.onchange=e=>{st.line=e.target.value;render()};
   const of=document.getElementById("oppFilter");if(of)of.onchange=e=>{st.oppFilter=e.target.value;render()};
