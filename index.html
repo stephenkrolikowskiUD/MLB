@@ -258,28 +258,36 @@ function switchMode(m){
 function switchPicksView(v){st.picksView=v;render()}
 function setPropsMetric(m){st.propsMetric=m;render()}
 
-// === SEARCH — no full re-render, just update suggestions ===
-function filterPlayerSugs(q){
-  st.playerSearch=q;
+// === SEARCH — updates suggestions without re-rendering ===
+function filterPlayerSugs(val){
+  st.playerSearch=val;
   const box=document.getElementById("sugBox");
   if(!box)return;
-  if(q.length<1){st.playerSuggestions=[];st.showPlayerSugs=false;box.innerHTML="";box.style.display="none";return}
+  if(val.length<1){st.playerSuggestions=[];st.showPlayerSugs=false;box.innerHTML="";box.style.display="none";return}
   const src=st.mode==="pitcher"?st.pTonight:st.tonight;
-  const ql=q.toLowerCase();
+  const ql=val.toLowerCase();
   st.playerSuggestions=src.filter(p=>{const n=p.player_name;return n&&String(n).toLowerCase().includes(ql)}).slice(0,10);
   st.showPlayerSugs=st.playerSuggestions.length>0;
   if(st.showPlayerSugs){
     box.style.display="block";
-    box.innerHTML=st.playerSuggestions.map(p=>`<div class="sug-item" onmousedown="event.preventDefault()" onclick="pickDashPlayer('${esc(p.player_name)}')""><div class="sug-name">${esc(p.player_name)}</div><div class="sug-meta">${esc(p.team_abbr||"")}</div></div>`).join("");
+    box.innerHTML=st.playerSuggestions.map(p=>{
+      const safe=String(p.player_name).replace(/'/g,"\\'");
+      return`<div class="sug-item" onmousedown="pickDashPlayer('${safe}')"><div class="sug-name">${esc(p.player_name)}</div><div class="sug-meta">${esc(p.team_abbr||"")}</div></div>`;
+    }).join("");
   }else{box.innerHTML="";box.style.display="none"}
 }
 function pickDashPlayer(name){
   st.player=name;st.playerSearch="";st.playerSuggestions=[];st.showPlayerSugs=false;st.oppFilter="";
-  const box=document.getElementById("sugBox");if(box){box.innerHTML="";box.style.display="none"}
-  const inp=document.getElementById("dashPlayerSearch");if(inp)inp.value=name;
-  console.log(`Selected: "${name}"`);
+  console.log("Selected:",name);
   render();
 }
+// Close suggestions when clicking outside
+document.addEventListener("click",e=>{
+  if(st.showPlayerSugs&&!e.target.closest(".search-wrap")){
+    st.showPlayerSugs=false;st.playerSearch="";
+    const box=document.getElementById("sugBox");if(box){box.innerHTML="";box.style.display="none"}
+  }
+});
 
 // === RENDER ===
 function render(){
@@ -442,7 +450,6 @@ function render(){
       <input type="text" id="dashPlayerSearch" placeholder="Search ${st.mode==='pitcher'?'pitcher':'batter'}..." value="${esc(player)}" autocomplete="off"
         onfocus="this.select()"
         oninput="filterPlayerSugs(this.value)"
-        onblur="setTimeout(()=>{const b=document.getElementById('sugBox');if(b){b.innerHTML='';b.style.display='none'}},300)"
       />
       <div id="sugBox" class="suggestions" style="display:none"></div>
     </div>
