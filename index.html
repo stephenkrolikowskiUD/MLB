@@ -38,10 +38,10 @@ input::placeholder{color:#6b8f7b}
 .split-title{color:#e5e7eb;font-size:10px;font-weight:600;margin-bottom:8px;display:block}
 .mini-bars-container{position:relative;height:70px;display:flex;gap:6px;align-items:flex-end}
 .mini-bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
-.mini-bar{width:100%;border-radius:3px 3px 0 0;flex-shrink:0;transition:height .3s,background .3s}
+.mini-bar{width:100%;border-radius:3px 3px 0 0;flex-shrink:0}
 .mini-bar-label{font-size:8px;color:#86efac;margin-top:2px}
 .mini-bar-val{font-size:8px;color:#fff;font-weight:600;margin-top:1px}
-.matchup-card{background:#163024;border-radius:10px;padding:12px 14px;margin-bottom:0}
+.matchup-card{background:#163024;border-radius:10px;padding:12px 14px}
 .matchup-header{color:#4ade80;font-weight:700;font-size:14px;margin-bottom:6px}
 .matchup-sub{color:#86efac;font-size:11px;margin-bottom:8px}
 .matchup-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
@@ -80,7 +80,6 @@ td.push{color:#9ca3af;font-weight:700}
 .early-banner .icon{font-size:20px;margin-bottom:4px}
 .early-banner .msg{color:#86efac;font-size:12px;font-weight:600}
 .early-banner .sub{color:#6b8f7b;font-size:11px;margin-top:4px}
-/* Prop cards on dashboard */
 .prop-card{background:#163024;border:1px solid #2d5a3d;border-radius:10px;padding:10px 12px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between}
 .prop-left{display:flex;align-items:center;gap:10px}
 .prop-metric{background:#1a3d2a;border:1px solid #2d5a3d;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;color:#4ade80;min-width:32px;text-align:center}
@@ -89,7 +88,6 @@ td.push{color:#9ca3af;font-weight:700}
 .prop-odds{font-size:11px;font-weight:600}
 .prop-over{color:#22c55e}
 .prop-under{color:#ef4444}
-/* Picks tab */
 .pick-card{background:#163024;border-radius:10px;padding:12px 14px;margin:0 16px 10px;border-left:3px solid #2d5a3d}
 .pick-card.smash{border-left-color:#22c55e;background:#16302a}
 .pick-card.strong{border-left-color:#3b82f6}
@@ -112,7 +110,6 @@ td.push{color:#9ca3af;font-weight:700}
 .result-miss{background:#ef444422;color:#ef4444;border:1px solid #ef444444}
 .result-push{background:#9ca3af22;color:#9ca3af;border:1px solid #9ca3af44}
 .result-actual{color:#86efac;font-size:11px}
-/* Props table on picks tab */
 .props-filter{display:flex;gap:6px;padding:8px 16px;overflow-x:auto}
 .pf-btn{padding:6px 12px;font-size:11px;font-weight:600;color:#6b8f7b;background:#1a3d2a;border:1px solid #2d5a3d;border-radius:16px;cursor:pointer;white-space:nowrap;flex-shrink:0}
 .pf-btn.active{color:#4ade80;background:#24503a;border-color:#4ade80}
@@ -121,11 +118,10 @@ td.push{color:#9ca3af;font-weight:700}
 .odds-over{color:#22c55e;font-weight:600}
 .odds-under{color:#ef4444;font-weight:600}
 .odds-even{color:#f59726;font-weight:600}
-/* Lookup styles */
 .search-wrap{position:relative}
 .suggestions{position:absolute;top:100%;left:0;right:0;background:#1a3d2a;border:1px solid #2d5a3d;border-top:none;border-radius:0 0 8px 8px;max-height:220px;overflow-y:auto;z-index:20;display:none}
 .sug-item{padding:10px 12px;cursor:pointer;border-bottom:1px solid #24503a;font-size:13px}
-.sug-item:hover{background:#24503a}
+.sug-item:hover,.sug-item:active{background:#24503a}
 .sug-name{font-weight:600;color:#fff}
 .sug-meta{color:#6b8f7b;font-size:11px;margin-top:2px}
 .profile{display:flex;align-items:center;gap:14px;padding:14px 16px}
@@ -153,93 +149,107 @@ td.push{color:#9ca3af;font-weight:700}
 <body>
 <div id="app"><div class="loading"><div style="font-size:32px;animation:bounce .8s ease-in-out infinite">⚾</div><div style="color:#6b8f7b;font-size:14px">Loading dashboard...</div></div></div>
 <script>
-// === CONFIG ===
 const SHEET_ID="1AAwSwFCGIqS6JGdYTdkSau91BtnM_sMdWl2By5A9nFQ";
 const METRICS=["H","HR","RBI","R","SB","SO","BB","TB","2B","DK_FP"];
 const P_METRICS=["IP","SO","ER","H","HR","BB","DK_FP","PC","W","L"];
 const MLB_API="https://statsapi.mlb.com/api/v1";
 
-// === STATE ===
 let st={
   tonight:[],gameLogs:[],splits:[],weather:[],pitchers:[],schedule:[],
   pTonight:[],pGameLogs:[],pSplits:[],
   picks:[],props:[],
-  mode:(function(){try{return localStorage.getItem('dfsMode')||'batter'}catch(e){return'batter'}})(),
+  mode:"batter", // always start batter — most reliable
   player:"",metric:"H",line:"",activeTab:"dashboard",oppFilter:"",
   playerSearch:"",playerSuggestions:[],showPlayerSugs:false,
   loading:true,error:null,
-  // Picks tab state
   picksView:"picks",propsMetric:"ALL",propsSearch:"",
-  // Lookup state
   lkPlayer:null,lkResults:[],lkSubTab:"career",lkPlayerType:"batter",
   lkCareer:null,lkYby:null,lkVsTeamStats:null,lkVsPlayerId:null,
   lkVsPlayerName:"",lkVsPlayerResults:[],lkVsPlayerStats:null,
   lkVsTeamId:null,lkLoading:{},lkTeamList:[]
 };
 
-// === SHEET FETCHER ===
+// === SHEET FETCHER with debug ===
 const fetchSheet=(name)=>new Promise((res,rej)=>{
-  fetch(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}`)
-  .then(r=>{if(!r.ok)throw new Error(`Failed: ${name}`);return r.text()})
-  .then(text=>Papa.parse(text,{header:true,skipEmptyLines:true,dynamicTyping:true,complete:r=>res(r.data),error:rej}))
-  .catch(rej);
+  const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}`;
+  fetch(url)
+  .then(r=>{
+    if(!r.ok){console.error(`❌ Sheet fetch failed: ${name} (${r.status})`);throw new Error(`Failed: ${name}`)}
+    return r.text()
+  })
+  .then(text=>{
+    Papa.parse(text,{header:true,skipEmptyLines:true,dynamicTyping:true,complete:r=>{
+      console.log(`✅ ${name}: ${r.data.length} rows, cols: ${r.meta.fields?.slice(0,5).join(', ')}...`);
+      res(r.data);
+    },error:e=>{console.error(`❌ Parse error: ${name}`,e);rej(e)}});
+  })
+  .catch(e=>{console.error(`❌ Fetch error: ${name}`,e);rej(e)});
 });
 
 // === HELPERS ===
 const toNum=v=>parseFloat(v)||0;
-const barColor=(val,line)=>!line?"#4ade80":val>line?"#22c55e":"#ef4444";
-const avgColor=(val,line)=>!line?"#4ade80":val>=line?"#4ade80":"#f97316";
+const barColor=(v,l)=>!l?"#4ade80":v>l?"#22c55e":"#ef4444";
+const avgColor=(v,l)=>!l?"#4ade80":v>=l?"#4ade80":"#f97316";
 const esc=s=>{if(!s)return"";return String(s).replace(/[&<>'"]/g,t=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[t]))};
-function hasGameLogs(playerName,isPitcher){
-  const logs=isPitcher?st.pGameLogs:st.gameLogs;
-  return logs.some(g=>g.player_name===playerName);
+const fmtOdds=v=>{if(!v&&v!==0)return"—";v=parseInt(v);return v>0?`+${v}`:`${v}`};
+
+function hasLogs(name,isP){return(isP?st.pGameLogs:st.gameLogs).some(g=>g.player_name===name)}
+function getProps(name){if(!name||!st.props.length)return[];const n=name.toLowerCase();return st.props.filter(p=>(p.PLAYER_NAME||"").toLowerCase()===n)}
+function getPick(name){if(!name||!st.picks.length)return null;const n=name.toLowerCase();return st.picks.find(p=>(p.player||"").toLowerCase()===n)||null}
+
+// Find first player with a valid name from an array
+function firstValidPlayer(arr){
+  for(let i=0;i<arr.length;i++){
+    const n=arr[i]?.player_name;
+    if(n&&typeof n==="string"&&n.trim().length>0)return n.trim();
+  }
+  return "";
 }
-function fmtOdds(v){if(!v&&v!==0)return"—";v=parseInt(v);return v>0?`+${v}`:`${v}`}
-function oddsClass(v){if(!v&&v!==0)return"";v=parseInt(v);return v<=-130?"odds-over":v>=130?"odds-under":"odds-even"}
+
+// === FOCUS MANAGEMENT ===
 let _restoring=false;
 function saveFocus(){const el=document.activeElement;if(el&&el.id)return{id:el.id,pos:el.selectionStart,val:el.value};return null}
 function restoreFocus(f){if(!f)return;const el=document.getElementById(f.id);if(el){_restoring=true;el.focus();if(f.val!==undefined)el.value=f.val;if(el.setSelectionRange&&f.pos!==undefined)try{el.setSelectionRange(f.pos,f.pos)}catch(e){}_restoring=false}}
 
-// Get player's DK props
-function getPlayerProps(name){
-  if(!name||!st.props.length)return[];
-  const n=name.toLowerCase();
-  return st.props.filter(p=>(p.PLAYER_NAME||"").toLowerCase()===n);
-}
-// Get player's AI pick
-function getPlayerPick(name){
-  if(!name||!st.picks.length)return null;
-  const n=name.toLowerCase();
-  return st.picks.find(p=>(p.player||"").toLowerCase()===n)||null;
-}
-
-// === MLB API FETCH ===
+// === MLB API ===
 let useProxy=false;
 async function mlbFetch(url){
   try{const r=await fetch(url);if(!r.ok)throw new Error(r.status);return r.json()}
   catch(e){if(!useProxy){useProxy=true;return(await fetch("https://corsproxy.io/?"+encodeURIComponent(url))).json()}throw e}
 }
 
-// === TAB / MODE SWITCHING ===
+// === NAVIGATION ===
 function switchTab(t){st.activeTab=t;render()}
 function switchMode(m){
-  st.mode=m;try{localStorage.setItem('dfsMode',m)}catch(e){}
+  st.mode=m;
   st.metric=m==="pitcher"?"SO":"H";
   st.line="";st.oppFilter="";st.playerSearch="";st.playerSuggestions=[];st.showPlayerSugs=false;
-  if(m==="pitcher"&&st.pTonight.length>0)st.player=st.pTonight[0].player_name||"";
-  if(m==="batter"&&st.tonight.length>0)st.player=st.tonight[0].player_name||"";
+  const src=m==="pitcher"?st.pTonight:st.tonight;
+  st.player=firstValidPlayer(src);
+  console.log(`Mode → ${m}, default player: "${st.player}", source has ${src.length} entries`);
   render();
 }
+function switchPicksView(v){st.picksView=v;render()}
+function setPropsMetric(m){st.propsMetric=m;render()}
+
+// === SEARCH ===
 function filterPlayerSugs(q){
   st.playerSearch=q;
   if(q.length<1){st.playerSuggestions=[];st.showPlayerSugs=false;render();return}
-  const source=st.mode==="pitcher"?st.pTonight:st.tonight;
-  st.playerSuggestions=source.filter(p=>(p.player_name||"").toLowerCase().includes(q.toLowerCase())).slice(0,8);
-  st.showPlayerSugs=true;render();
+  const src=st.mode==="pitcher"?st.pTonight:st.tonight;
+  const ql=q.toLowerCase();
+  st.playerSuggestions=src.filter(p=>{
+    const n=p.player_name;
+    return n&&typeof n==="string"&&n.toLowerCase().includes(ql);
+  }).slice(0,10);
+  st.showPlayerSugs=st.playerSuggestions.length>0;
+  render();
 }
-function pickDashPlayer(name){st.player=name;st.playerSearch="";st.playerSuggestions=[];st.showPlayerSugs=false;st.oppFilter="";render()}
-function switchPicksView(v){st.picksView=v;render()}
-function setPropsMetric(m){st.propsMetric=m;render()}
+function pickDashPlayer(name){
+  st.player=name;st.playerSearch="";st.playerSuggestions=[];st.showPlayerSugs=false;st.oppFilter="";
+  console.log(`Selected: "${name}"`);
+  render();
+}
 
 // === RENDER ===
 function render(){
@@ -248,272 +258,186 @@ function render(){
   if(st.loading){app.innerHTML=`<div class="loading"><div style="font-size:32px;animation:bounce .8s ease-in-out infinite">⚾</div><div style="color:#6b8f7b;font-size:14px">Loading dashboard...</div></div>`;return}
   if(st.error){app.innerHTML=`<div class="error">⚠️ ${st.error}<br><br><span style="color:#6b8f7b;font-size:12px">Make sure your Google Sheet is set to "Anyone with the link can view"</span></div>`;return}
 
-  const isPitcher=st.mode==="pitcher";
-  const curMetrics=isPitcher?P_METRICS:METRICS;
+  const isP=st.mode==="pitcher";
+  const curMetrics=isP?P_METRICS:METRICS;
   const {player,metric,line,activeTab,oppFilter}=st;
-  const curTonight=isPitcher?st.pTonight:st.tonight;
-  const curLogs=isPitcher?st.pGameLogs:st.gameLogs;
-  const curSplits=isPitcher?st.pSplits:st.splits;
+  const curTonight=isP?st.pTonight:st.tonight;
+  const curLogs=isP?st.pGameLogs:st.gameLogs;
+  const curSplits=isP?st.pSplits:st.splits;
   const lineNum=parseFloat(line)||0;
 
-  const playerTonight=curTonight.find(t=>t.player_name===player)||{};
-  const playerHasLogs=hasGameLogs(player,isPitcher);
-  const allLogs=curLogs.filter(g=>g.player_name===player).sort((a,b)=>b.game_date?.localeCompare(a.game_date));
+  const pT=curTonight.find(t=>t.player_name===player)||{};
+  const pHasLogs=hasLogs(player,isP);
+  const allLogs=curLogs.filter(g=>g.player_name===player).sort((a,b)=>(b.game_date||"").localeCompare(a.game_date||""));
   const last10=[...allLogs].reverse().slice(-10);
   const most=allLogs[0]||{};
 
   const seasAvg=toNum(most[`Seas_${metric}`]);
-  const midAvg=isPitcher?toNum(most[`L7_${metric}`]):toNum(most[`L30_${metric}`]);
-  const shortAvg=isPitcher?toNum(most[`L3_${metric}`]):toNum(most[`L7_${metric}`]);
+  const midAvg=isP?toNum(most[`L7_${metric}`]):toNum(most[`L30_${metric}`]);
+  const shortAvg=isP?toNum(most[`L3_${metric}`]):toNum(most[`L7_${metric}`]);
   const lastGame=toNum(most[metric]);
-  const midLabel=isPitcher?"L7":"L30";
-  const shortLabel=isPitcher?"L3":"L7";
+  const midLbl=isP?"L7":"L30",shortLbl=isP?"L3":"L7";
 
-  const hitsL5=lineNum?allLogs.slice(0,5).filter(g=>toNum(g[metric])>lineNum).length:null;
-  const hitsL10=lineNum?allLogs.slice(0,10).filter(g=>toNum(g[metric])>lineNum).length:null;
-  const hitsSeas=lineNum?allLogs.filter(g=>toNum(g[metric])>lineNum).length:null;
-  const seasRate=hitsSeas!==null&&allLogs.length>0?hitsSeas/allLogs.length:null;
+  const hL5=lineNum?allLogs.slice(0,5).filter(g=>toNum(g[metric])>lineNum).length:null;
+  const hL10=lineNum?allLogs.slice(0,10).filter(g=>toNum(g[metric])>lineNum).length:null;
+  const hSeas=lineNum?allLogs.filter(g=>toNum(g[metric])>lineNum).length:null;
+  const sRate=hSeas!==null&&allLogs.length>0?hSeas/allLogs.length:null;
   const maxLog=Math.max(...last10.map(g=>toNum(g[metric])),lineNum||0,1);
 
   const metricOpts=curMetrics.map(m=>`<option value="${m}" ${m===metric?"selected":""}>${m}</option>`).join("");
-
-  const bars=last10.map(g=>{
-    const val=toNum(g[metric]);const h=Math.max(4,(val/maxLog)*80);const dt=(g.game_date||"").slice(5);
-    return`<div class="bar-wrap"><div class="bar-val">${val}</div><div class="bar" style="height:${h}px;background:${barColor(val,lineNum)}"></div><div class="bar-date">${dt}</div></div>`;
-  }).join("");
-
-  const avgs=[{l:"Season",v:seasAvg},{l:midLabel,v:midAvg},{l:shortLabel,v:shortAvg},{l:"Last",v:lastGame}].map(a=>
-    `<div class="avg-card" style="border:1px solid ${lineNum&&a.v>=lineNum?"#22c55e44":lineNum?"#ef444433":"#2d5a3d"}"><div class="avg-label">${a.l}</div><div class="avg-val" style="color:${avgColor(a.v,lineNum)}">${a.v.toFixed(2)}</div></div>`
-  ).join("");
+  const bars=last10.map(g=>{const v=toNum(g[metric]);const h=Math.max(4,(v/maxLog)*80);return`<div class="bar-wrap"><div class="bar-val">${v}</div><div class="bar" style="height:${h}px;background:${barColor(v,lineNum)}"></div><div class="bar-date">${(g.game_date||"").slice(5)}</div></div>`}).join("");
+  const avgs=[{l:"Season",v:seasAvg},{l:midLbl,v:midAvg},{l:shortLbl,v:shortAvg},{l:"Last",v:lastGame}].map(a=>`<div class="avg-card" style="border:1px solid ${lineNum&&a.v>=lineNum?"#22c55e44":lineNum?"#ef444433":"#2d5a3d"}"><div class="avg-label">${a.l}</div><div class="avg-val" style="color:${avgColor(a.v,lineNum)}">${a.v.toFixed(2)}</div></div>`).join("");
 
   // Stats strip
-  const seasTotals={};let statStrip="";
-  if(isPitcher){
-    ["IP","SO","ER","H","HR","BB","W","L","PC","R"].forEach(s=>{seasTotals[s]=allLogs.reduce((sum,g)=>sum+toNum(g[s]),0)});
-    seasTotals["DK_FP"]=allLogs.reduce((sum,g)=>sum+toNum(g["DK_FP"]),0).toFixed(1);
-    const totalOuts=allLogs.reduce((sum,g)=>{const p=g.IP?.toString().split(".")||["0"];return sum+(parseInt(p[0])||0)*3+(parseInt(p[1])||0)},0);
-    const realIP=totalOuts/3;seasTotals["IP"]=realIP.toFixed(1);
-    seasTotals["ERA"]=realIP>0?((seasTotals.ER*9)/realIP).toFixed(2):"0.00";
-    seasTotals["WHIP"]=realIP>0?(((seasTotals.H||0)+(seasTotals.BB||0))/realIP).toFixed(2):"0.00";
-    seasTotals["K9"]=realIP>0?((seasTotals.SO*9)/realIP).toFixed(1):"0.0";
-    statStrip=["W","L","ERA","WHIP","SO","K9","IP","DK_FP"].map(s=>`<div class="stat-item"><div class="stat-label">${s}</div><div class="stat-val">${seasTotals[s]}</div></div>`).join("");
+  const sT={};let statStrip="";
+  if(isP){
+    ["IP","SO","ER","H","HR","BB","W","L","PC","R"].forEach(s=>{sT[s]=allLogs.reduce((a,g)=>a+toNum(g[s]),0)});
+    sT.DK_FP=allLogs.reduce((a,g)=>a+toNum(g.DK_FP),0).toFixed(1);
+    const outs=allLogs.reduce((a,g)=>{const p=(g.IP||"").toString().split(".");return a+(parseInt(p[0])||0)*3+(parseInt(p[1])||0)},0);
+    const rIP=outs/3;sT.IP=rIP.toFixed(1);
+    sT.ERA=rIP>0?((sT.ER*9)/rIP).toFixed(2):"0.00";
+    sT.WHIP=rIP>0?(((sT.H||0)+(sT.BB||0))/rIP).toFixed(2):"0.00";
+    sT.K9=rIP>0?((sT.SO*9)/rIP).toFixed(1):"0.0";
+    statStrip=["W","L","ERA","WHIP","SO","K9","IP","DK_FP"].map(s=>`<div class="stat-item"><div class="stat-label">${s}</div><div class="stat-val">${sT[s]}</div></div>`).join("");
   }else{
-    ["H","HR","RBI","R","SB","BB","TB","SO","AB"].forEach(s=>{seasTotals[s]=allLogs.reduce((sum,g)=>sum+toNum(g[s]),0)});
-    seasTotals["AVG"]=seasTotals.AB>0?(seasTotals.H/seasTotals.AB).toFixed(3):".000";
-    seasTotals["DK_FP"]=allLogs.reduce((sum,g)=>sum+toNum(g["DK_FP"]),0).toFixed(1);
-    statStrip=["H","HR","RBI","R","SB","BB","TB","DK_FP","AVG"].map(s=>{
-      const val=s==="AVG"?seasTotals.AVG:s==="DK_FP"?seasTotals.DK_FP:seasTotals[s];
-      return`<div class="stat-item"><div class="stat-label">${s}</div><div class="stat-val">${val}</div></div>`;
-    }).join("");
+    ["H","HR","RBI","R","SB","BB","TB","SO","AB"].forEach(s=>{sT[s]=allLogs.reduce((a,g)=>a+toNum(g[s]),0)});
+    sT.AVG=sT.AB>0?(sT.H/sT.AB).toFixed(3):".000";
+    sT.DK_FP=allLogs.reduce((a,g)=>a+toNum(g.DK_FP),0).toFixed(1);
+    statStrip=["H","HR","RBI","R","SB","BB","TB","DK_FP","AVG"].map(s=>`<div class="stat-item"><div class="stat-label">${s}</div><div class="stat-val">${s==="AVG"?sT.AVG:s==="DK_FP"?sT.DK_FP:sT[s]}</div></div>`).join("");
   }
 
-  const oppPitcher=playerTonight.opp_pitcher_name||"TBD";
-  const oppHand=playerTonight.opp_pitcher_hand||"?";
-  const vsAvg=toNum(playerTonight.vs_OPP_AVG);const vsOps=toNum(playerTonight.vs_OPP_OPS);
-  const vsHr=toNum(playerTonight.vs_OPP_HR);const vsSo=toNum(playerTonight.vs_OPP_SO);
-  const venue=playerTonight.venue_tonight||"";
+  const oppP=pT.opp_pitcher_name||"TBD",oppH=pT.opp_pitcher_hand||"?";
+  const vsAvg=toNum(pT.vs_OPP_AVG),vsOps=toNum(pT.vs_OPP_OPS),vsHr=toNum(pT.vs_OPP_HR),vsSo=toNum(pT.vs_OPP_SO);
+  const venue=pT.venue_tonight||"";
   const wx=st.weather.find(w=>w.venue_name===venue)||{};
 
-  const split=curSplits.find(s=>s.player_name===player)||{};
-  const homeVal=toNum(split[`${metric}_Home`]);const awayVal=toNum(split[`${metric}_Away`]);
+  const sp=curSplits.find(s=>s.player_name===player)||{};
+  const hV=toNum(sp[`${metric}_Home`]),aV=toNum(sp[`${metric}_Away`]);
   let haBars=`<div class="no-data">No data</div>`;
-  if(homeVal>0||awayVal>0){
-    const mx=Math.max(homeVal,awayVal,.1);
-    haBars=[{l:"Home",v:homeVal,c:"#8b5cf6"},{l:"Away",v:awayVal,c:"#06b6d4"}].map(b=>
-      `<div class="mini-bar-wrap"><div class="mini-bar" style="height:${Math.max(4,(b.v/mx)*60)}px;background:${b.c}"></div><div class="mini-bar-label">${b.l}</div><div class="mini-bar-val">${b.v.toFixed(2)}</div></div>`
-    ).join("");
-  }
+  if(hV>0||aV>0){const mx=Math.max(hV,aV,.1);haBars=[{l:"Home",v:hV,c:"#8b5cf6"},{l:"Away",v:aV,c:"#06b6d4"}].map(b=>`<div class="mini-bar-wrap"><div class="mini-bar" style="height:${Math.max(4,(b.v/mx)*60)}px;background:${b.c}"></div><div class="mini-bar-label">${b.l}</div><div class="mini-bar-val">${b.v.toFixed(2)}</div></div>`).join("")}
 
-  const lastUpdated=most.LAST_UPDATED||playerTonight.LAST_UPDATED||"—";
-  const earlyBanner=!playerHasLogs?`<div class="early-banner"><div class="icon">🌱</div><div class="msg">Early Season — No Game Logs Yet</div><div class="sub">${esc(player)} is on the active roster. Matchup info, props, and career stats via Lookup are still available.</div></div>`:"";
+  const lastUp=most.LAST_UPDATED||pT.LAST_UPDATED||"—";
+  const earlyBanner=!pHasLogs&&player?`<div class="early-banner"><div class="icon">🌱</div><div class="msg">Early Season — No Game Logs Yet</div><div class="sub">${esc(player)} is on the active roster. Matchup info, props, and Lookup are available.</div></div>`:"";
 
-  // === DK PROPS FOR SELECTED PLAYER (Dashboard) ===
-  const playerProps=getPlayerProps(player);
-  const playerPick=getPlayerPick(player);
+  // Player props + AI pick on dashboard
+  const pProps=getProps(player);
+  const pPick=getPick(player);
   let propsHTML="";
-  if(playerProps.length>0){
-    propsHTML=`<div class="section"><div class="label">🎲 DraftKings Props</div>${playerProps.map(p=>{
-      const ov=fmtOdds(p.OVER_ODDS);const un=fmtOdds(p.UNDER_ODDS);
-      return`<div class="prop-card"><div class="prop-left"><div class="prop-metric">${p.METRIC}</div><div class="prop-line">${p.DK_LINE}</div></div><div class="prop-right"><div class="prop-odds prop-over">O ${ov}</div><div class="prop-odds prop-under">U ${un}</div></div></div>`;
-    }).join("")}</div>`;
-  }
+  if(pProps.length>0){propsHTML=`<div class="section"><div class="label">🎲 DraftKings Props</div>${pProps.map(p=>`<div class="prop-card"><div class="prop-left"><div class="prop-metric">${p.METRIC}</div><div class="prop-line">${p.DK_LINE}</div></div><div class="prop-right"><div class="prop-odds prop-over">O ${fmtOdds(p.OVER_ODDS)}</div><div class="prop-odds prop-under">U ${fmtOdds(p.UNDER_ODDS)}</div></div></div>`).join("")}</div>`}
   let pickBanner="";
-  if(playerPick){
-    const conf=playerPick.confidence||"";const cls=conf==="SMASH"?"smash":conf==="STRONG"?"strong":"lean";
-    pickBanner=`<div class="section"><div class="card" style="border-left:3px solid ${conf==="SMASH"?"#22c55e":"#3b82f6"}"><div class="card-title">🤖 AI Pick</div><div style="display:flex;align-items:center;gap:8px;margin-top:4px"><div class="pick-type">${playerPick.prop_type||""}</div><div class="pick-lean ${(playerPick.lean||"").toLowerCase()}">${playerPick.lean||""} ${playerPick.line||""}</div><div class="pick-conf ${cls}">${conf}</div></div><div class="pick-rationale">${esc(playerPick.rationale||"")}</div></div></div>`;
-  }
+  if(pPick){const c=pPick.confidence||"",cls=c==="SMASH"?"smash":c==="STRONG"?"strong":"lean";pickBanner=`<div class="section"><div class="card" style="border-left:3px solid ${c==="SMASH"?"#22c55e":"#3b82f6"}"><div class="card-title">🤖 AI Pick</div><div style="display:flex;align-items:center;gap:8px;margin-top:4px"><div class="pick-type">${pPick.prop_type||""}</div><div class="pick-lean ${(pPick.lean||"").toLowerCase()}">${pPick.lean||""} ${pPick.line||""}</div><div class="pick-conf ${cls}">${c}</div></div><div class="pick-rationale">${esc(pPick.rationale||"")}</div></div></div>`}
 
-  // === GAME LOG TABLE ===
-  const opponents=[...new Set(allLogs.map(g=>g.opp_abbr).filter(Boolean))].sort();
-  const oppOptions=`<option value="">All Opponents</option>`+opponents.map(o=>`<option value="${o}" ${oppFilter===o?"selected":""}>${o}</option>`).join("");
-  const filteredLogs=oppFilter?allLogs.filter(g=>g.opp_abbr===oppFilter):allLogs;
-  const logCols=isPitcher?["IP","H","ER","HR","SO","BB","PC","W","L","DK_FP"]:["AB","H","HR","RBI","R","SB","BB","SO","TB","DK_FP"];
-  const tableHeaders=logCols.map(c=>`<th class="${c===metric?"hl":""}">${c}</th>`).join("");
-  const tableRows=filteredLogs.map(g=>{
-    const cells=logCols.map(col=>{
-      const val=toNum(g[col]);let cls=col===metric?"hl":"";
-      if(col===metric&&lineNum){cls=val>lineNum?"hit":val===lineNum?"push":"miss"}
-      return`<td class="${cls}">${col==="DK_FP"?val.toFixed(1):val}</td>`;
-    }).join("");
-    return`<tr><td>${(g.game_date||"").slice(5)}</td><td>${g.opp_abbr||"—"}</td><td>${g.home_away||"—"}</td>${cells}</tr>`;
-  }).join("");
+  // Game log table
+  const opps=[...new Set(allLogs.map(g=>g.opp_abbr).filter(Boolean))].sort();
+  const oppOpts=`<option value="">All Opponents</option>`+opps.map(o=>`<option value="${o}" ${oppFilter===o?"selected":""}>${o}</option>`).join("");
+  const fLogs=oppFilter?allLogs.filter(g=>g.opp_abbr===oppFilter):allLogs;
+  const logCols=isP?["IP","H","ER","HR","SO","BB","PC","W","L","DK_FP"]:["AB","H","HR","RBI","R","SB","BB","SO","TB","DK_FP"];
+  const tHeaders=logCols.map(c=>`<th class="${c===metric?"hl":""}">${c}</th>`).join("");
+  const tRows=fLogs.map(g=>{const cells=logCols.map(c=>{const v=toNum(g[c]);let cls=c===metric?"hl":"";if(c===metric&&lineNum){cls=v>lineNum?"hit":v===lineNum?"push":"miss"}return`<td class="${cls}">${c==="DK_FP"?v.toFixed(1):v}</td>`}).join("");return`<tr><td>${(g.game_date||"").slice(5)}</td><td>${g.opp_abbr||"—"}</td><td>${g.home_away||"—"}</td>${cells}</tr>`}).join("");
 
-  // === PICKS & PROPS TAB ===
-  let picksTabHTML="";
+  // === PICKS TAB ===
+  let picksHTML="";
   if(st.picksView==="picks"){
-    if(st.picks.length===0){
-      picksTabHTML=`<div class="empty" style="padding:40px 20px">No AI picks available today. Run the engine to generate picks.</div>`;
-    }else{
-      const hitCount=st.picks.filter(p=>(p.HIT||"").toUpperCase()==="YES"||p.HIT===true).length;
-      const missCount=st.picks.filter(p=>(p.HIT||"").toUpperCase()==="NO"||p.HIT===false).length;
-      const tracked=hitCount+missCount;
-      const smashCount=st.picks.filter(p=>(p.confidence||"").toUpperCase()==="SMASH").length;
-
-      picksTabHTML=`<div class="picks-summary">
-        <div class="ps-card"><div class="ps-val">${st.picks.length}</div><div class="ps-lbl">PICKS</div></div>
-        <div class="ps-card"><div class="ps-val">${smashCount}</div><div class="ps-lbl">SMASH</div></div>
-        ${tracked?`<div class="ps-card"><div class="ps-val" style="color:${hitCount>=missCount?'#22c55e':'#ef4444'}">${hitCount}-${missCount}</div><div class="ps-lbl">RECORD</div></div>`:`<div class="ps-card"><div class="ps-val" style="color:#6b8f7b">—</div><div class="ps-lbl">RECORD</div></div>`}
-      </div>`;
-      picksTabHTML+=st.picks.map(pk=>{
-        const conf=(pk.confidence||"").toUpperCase();
-        const cls=conf==="SMASH"?"smash":conf==="STRONG"?"strong":"";
-        const hit=(pk.HIT||"").toString().toUpperCase();
-        const hasResult=pk.ACTUAL_STAT!=null&&pk.ACTUAL_STAT!==""&&!isNaN(pk.ACTUAL_STAT);
-        let resultHTML="";
-        if(hasResult||hit){
-          const rCls=hit==="YES"||hit==="TRUE"?"result-hit":hit==="NO"||hit==="FALSE"?"result-miss":"result-push";
-          const rLabel=hit==="YES"||hit==="TRUE"?"✅ HIT":hit==="NO"||hit==="FALSE"?"❌ MISS":"⏳ Pending";
-          resultHTML=`<div class="pick-result"><span class="result-badge ${rCls}">${rLabel}</span>${hasResult?`<span class="result-actual">Actual: ${pk.ACTUAL_STAT}</span>`:""}</div>`;
-        }
-        return`<div class="pick-card ${cls}">
-          <div><span class="pick-rank">#${pk.rank||"—"}</span><span class="pick-player">${esc(pk.player)}</span></div>
-          <div class="pick-matchup">${esc(pk.game||"")} · vs ${esc(pk.opp_pitcher||"TBD")} · ${esc(pk.venue||"")}</div>
-          <div class="pick-prop"><div class="pick-type">${pk.prop_type||""}</div><div class="pick-lean ${(pk.lean||"").toLowerCase()}">${pk.lean||""} ${pk.line||""}</div><div class="pick-conf ${cls}">${conf||"LEAN"}</div></div>
-          ${pk.rationale?`<div class="pick-rationale">"${esc(pk.rationale)}"</div>`:""}
-          ${resultHTML}
-        </div>`;
+    if(!st.picks.length){picksHTML=`<div class="empty" style="padding:40px">No AI picks today. Run the engine to generate.</div>`}
+    else{
+      const hits=st.picks.filter(p=>{const h=(p.HIT||"").toString().toUpperCase();return h==="YES"||h==="TRUE"}).length;
+      const miss=st.picks.filter(p=>{const h=(p.HIT||"").toString().toUpperCase();return h==="NO"||h==="FALSE"}).length;
+      const smash=st.picks.filter(p=>(p.confidence||"").toUpperCase()==="SMASH").length;
+      const tracked=hits+miss;
+      picksHTML=`<div class="picks-summary"><div class="ps-card"><div class="ps-val">${st.picks.length}</div><div class="ps-lbl">PICKS</div></div><div class="ps-card"><div class="ps-val">${smash}</div><div class="ps-lbl">SMASH</div></div>${tracked?`<div class="ps-card"><div class="ps-val" style="color:${hits>=miss?"#22c55e":"#ef4444"}">${hits}-${miss}</div><div class="ps-lbl">RECORD</div></div>`:`<div class="ps-card"><div class="ps-val" style="color:#6b8f7b">—</div><div class="ps-lbl">RECORD</div></div>`}</div>`;
+      picksHTML+=st.picks.map(pk=>{
+        const c=(pk.confidence||"").toUpperCase(),cls=c==="SMASH"?"smash":c==="STRONG"?"strong":"";
+        const h=(pk.HIT||"").toString().toUpperCase();
+        const hasR=pk.ACTUAL_STAT!=null&&pk.ACTUAL_STAT!==""&&!isNaN(pk.ACTUAL_STAT);
+        let rHTML="";
+        if(hasR||h){const rC=h==="YES"||h==="TRUE"?"result-hit":h==="NO"||h==="FALSE"?"result-miss":"result-push";const rL=h==="YES"||h==="TRUE"?"✅ HIT":h==="NO"||h==="FALSE"?"❌ MISS":"⏳ Pending";rHTML=`<div class="pick-result"><span class="result-badge ${rC}">${rL}</span>${hasR?`<span class="result-actual">Actual: ${pk.ACTUAL_STAT}</span>`:""}</div>`}
+        return`<div class="pick-card ${cls}"><div><span class="pick-rank">#${pk.rank||"—"}</span><span class="pick-player">${esc(pk.player)}</span></div><div class="pick-matchup">${esc(pk.game||"")} · vs ${esc(pk.opp_pitcher||"TBD")} · ${esc(pk.venue||"")}</div><div class="pick-prop"><div class="pick-type">${pk.prop_type||""}</div><div class="pick-lean ${(pk.lean||"").toLowerCase()}">${pk.lean||""} ${pk.line||""}</div><div class="pick-conf ${cls}">${c||"LEAN"}</div></div>${pk.rationale?`<div class="pick-rationale">"${esc(pk.rationale)}"</div>`:""}${rHTML}</div>`;
       }).join("");
     }
   }else{
-    // Props browser
-    const allMetrics=[...new Set(st.props.map(p=>p.METRIC).filter(Boolean))].sort();
-    const filtered=st.propsMetric==="ALL"?st.props:st.props.filter(p=>p.METRIC===st.propsMetric);
-    const searched=st.propsSearch?filtered.filter(p=>(p.PLAYER_NAME||"").toLowerCase().includes(st.propsSearch.toLowerCase())):filtered;
-    const sorted=[...searched].sort((a,b)=>(a.PLAYER_NAME||"").localeCompare(b.PLAYER_NAME||""));
-    const showing=sorted.slice(0,200);
-
-    picksTabHTML=`<div style="padding:8px 16px"><input type="text" id="propsSearchInput" placeholder="Search player..." value="${esc(st.propsSearch)}"/></div>
-    <div class="props-filter"><div class="pf-btn ${st.propsMetric==="ALL"?"active":""}" onclick="setPropsMetric('ALL')">All</div>${allMetrics.map(m=>`<div class="pf-btn ${st.propsMetric===m?"active":""}" onclick="setPropsMetric('${m}')">${m}</div>`).join("")}</div>
-    <div style="padding:0 16px;color:#6b8f7b;font-size:10px;margin-bottom:4px">${searched.length} props${searched.length>200?" (showing 200)":""}</div>
-    <div class="props-tbl-wrap"><table><thead><tr><th>Player</th><th>Prop</th><th>Line</th><th>Over</th><th>Under</th></tr></thead><tbody>${showing.map(p=>{
-      const ov=fmtOdds(p.OVER_ODDS);const un=fmtOdds(p.UNDER_ODDS);
-      const ovCls=p.OVER_ODDS&&parseInt(p.OVER_ODDS)<=-130?"odds-over":p.OVER_ODDS&&parseInt(p.OVER_ODDS)>=130?"odds-under":"odds-even";
-      const unCls=p.UNDER_ODDS&&parseInt(p.UNDER_ODDS)<=-130?"odds-over":p.UNDER_ODDS&&parseInt(p.UNDER_ODDS)>=130?"odds-under":"odds-even";
-      return`<tr><td style="text-align:left;font-weight:600">${esc(p.PLAYER_NAME)}</td><td><span style="color:#4ade80;font-weight:600">${p.METRIC}</span></td><td style="font-weight:700">${p.DK_LINE}</td><td class="${ovCls}">${ov}</td><td class="${unCls}">${un}</td></tr>`;
-    }).join("")}</tbody></table></div>`;
+    const allM=[...new Set(st.props.map(p=>p.METRIC).filter(Boolean))].sort();
+    const fil=st.propsMetric==="ALL"?st.props:st.props.filter(p=>p.METRIC===st.propsMetric);
+    const srch=st.propsSearch?fil.filter(p=>(p.PLAYER_NAME||"").toLowerCase().includes(st.propsSearch.toLowerCase())):fil;
+    const sorted=[...srch].sort((a,b)=>(a.PLAYER_NAME||"").localeCompare(b.PLAYER_NAME||"")).slice(0,200);
+    picksHTML=`<div style="padding:8px 16px"><input type="text" id="propsSearchInput" placeholder="Search player..." value="${esc(st.propsSearch)}"/></div>
+    <div class="props-filter"><div class="pf-btn ${st.propsMetric==="ALL"?"active":""}" onclick="setPropsMetric('ALL')">All</div>${allM.map(m=>`<div class="pf-btn ${st.propsMetric===m?"active":""}" onclick="setPropsMetric('${m}')">${m}</div>`).join("")}</div>
+    <div style="padding:0 16px;color:#6b8f7b;font-size:10px;margin-bottom:4px">${srch.length} props${srch.length>200?" (showing 200)":""}</div>
+    <div class="props-tbl-wrap"><table><thead><tr><th>Player</th><th>Prop</th><th>Line</th><th>Over</th><th>Under</th></tr></thead><tbody>${sorted.map(p=>`<tr><td style="text-align:left;font-weight:600">${esc(p.PLAYER_NAME)}</td><td><span style="color:#4ade80;font-weight:600">${p.METRIC}</span></td><td style="font-weight:700">${p.DK_LINE}</td><td class="${parseInt(p.OVER_ODDS)<=-130?"odds-over":parseInt(p.OVER_ODDS)>=130?"odds-under":"odds-even"}">${fmtOdds(p.OVER_ODDS)}</td><td class="${parseInt(p.UNDER_ODDS)<=-130?"odds-over":parseInt(p.UNDER_ODDS)>=130?"odds-under":"odds-even"}">${fmtOdds(p.UNDER_ODDS)}</td></tr>`).join("")}</tbody></table></div>`;
   }
 
-  // === LOOKUP TAB ===
+  // === LOOKUP ===
   const lk=st.lkPlayer;
-  const lkCols=st.lkPlayerType==="pitcher"
-    ?[{k:"gamesPlayed",l:"G"},{k:"gamesStarted",l:"GS"},{k:"wins",l:"W"},{k:"losses",l:"L"},{k:"era",l:"ERA"},{k:"inningsPitched",l:"IP"},{k:"strikeOuts",l:"SO"},{k:"baseOnBalls",l:"BB"},{k:"whip",l:"WHIP"},{k:"avg",l:"BAA"}]
-    :[{k:"gamesPlayed",l:"G"},{k:"atBats",l:"AB"},{k:"hits",l:"H"},{k:"homeRuns",l:"HR"},{k:"rbi",l:"RBI"},{k:"runs",l:"R"},{k:"stolenBases",l:"SB"},{k:"baseOnBalls",l:"BB"},{k:"strikeOuts",l:"SO"},{k:"avg",l:"AVG"},{k:"obp",l:"OBP"},{k:"slg",l:"SLG"},{k:"ops",l:"OPS"}];
-  function fv(s,k){if(!s)return"—";const v=s[k];return v===undefined||v===null?"—":v}
-  function mkTable(hdrs,rows){
-    if(!rows||!rows.length)return`<div class="empty">No data available</div>`;
-    return`<div class="lk-tbl-wrap"><table><thead><tr>${rows[0].label?`<th></th>`:""}${hdrs.map(h=>`<th>${h.l}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr>${r.label?`<td class="hl">${r.label}</td>`:""}${hdrs.map(h=>`<td>${fv(r.stat||r,h.k)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
-  }
-  let lkSummary="",lkBody="";
+  const lkC=st.lkPlayerType==="pitcher"?[{k:"gamesPlayed",l:"G"},{k:"gamesStarted",l:"GS"},{k:"wins",l:"W"},{k:"losses",l:"L"},{k:"era",l:"ERA"},{k:"inningsPitched",l:"IP"},{k:"strikeOuts",l:"SO"},{k:"baseOnBalls",l:"BB"},{k:"whip",l:"WHIP"},{k:"avg",l:"BAA"}]:[{k:"gamesPlayed",l:"G"},{k:"atBats",l:"AB"},{k:"hits",l:"H"},{k:"homeRuns",l:"HR"},{k:"rbi",l:"RBI"},{k:"runs",l:"R"},{k:"stolenBases",l:"SB"},{k:"baseOnBalls",l:"BB"},{k:"strikeOuts",l:"SO"},{k:"avg",l:"AVG"},{k:"obp",l:"OBP"},{k:"slg",l:"SLG"},{k:"ops",l:"OPS"}];
+  const fv=(s,k)=>{if(!s)return"—";const v=s[k];return v===undefined||v===null?"—":v};
+  const mkT=(h,r)=>{if(!r||!r.length)return`<div class="empty">No data</div>`;return`<div class="lk-tbl-wrap"><table><thead><tr>${r[0].label?`<th></th>`:""}${h.map(x=>`<th>${x.l}</th>`).join("")}</tr></thead><tbody>${r.map(x=>`<tr>${x.label?`<td class="hl">${x.label}</td>`:""}${h.map(c=>`<td>${fv(x.stat||x,c.k)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`};
+
+  let lkSum="",lkBody="";
   if(lk&&st.lkCareer){
     const cs=st.lkCareer;
     const bx=st.lkPlayerType==="pitcher"?[{v:cs.era||"—",l:"ERA"},{v:cs.wins||"—",l:"W"},{v:cs.strikeOuts||"—",l:"K"},{v:cs.whip||"—",l:"WHIP"}]:[{v:cs.avg||"—",l:"AVG"},{v:cs.homeRuns||"—",l:"HR"},{v:cs.hits||"—",l:"H"},{v:cs.ops||"—",l:"OPS"}];
-    lkSummary=`<div class="stat-grid">${bx.map(b=>`<div class="stat-box"><div class="val">${b.v}</div><div class="lbl">${b.l}</div></div>`).join("")}</div>`;
+    lkSum=`<div class="stat-grid">${bx.map(b=>`<div class="stat-box"><div class="val">${b.v}</div><div class="lbl">${b.l}</div></div>`).join("")}</div>`;
   }
-  if(st.lkSubTab==="career"&&st.lkYby){
-    const rows=st.lkYby.map(y=>({label:`${y.season} ${y.team}`,stat:y.stat}));
-    if(st.lkCareer)rows.push({label:"CAREER",stat:st.lkCareer});
-    lkBody=mkTable(lkCols,rows);
-  }else if(st.lkSubTab==="career"&&st.lkLoading.career){lkBody=`<div class="loading-sm">⚾ Loading stats...</div>`}
+  if(st.lkSubTab==="career"){
+    if(st.lkYby){const rows=st.lkYby.map(y=>({label:`${y.season} ${y.team}`,stat:y.stat}));if(st.lkCareer)rows.push({label:"CAREER",stat:st.lkCareer});lkBody=mkT(lkC,rows)}
+    else if(st.lkLoading.career)lkBody=`<div class="loading-sm">⚾ Loading...</div>`;
+  }
   if(st.lkSubTab==="vsTeam"){
-    const tOpts=st.lkTeamList.map(t=>`<option value="${t.id}" ${t.id===st.lkVsTeamId?"selected":""}>${t.abbr} — ${t.name}</option>`).join("");
-    let tbl=`<div class="empty">Select a team to see matchup stats</div>`;
+    const tO=st.lkTeamList.map(t=>`<option value="${t.id}" ${t.id===st.lkVsTeamId?"selected":""}>${t.abbr} — ${t.name}</option>`).join("");
+    let tbl=`<div class="empty">Select a team</div>`;
     if(st.lkLoading.vsTeam)tbl=`<div class="loading-sm">⚾ Loading...</div>`;
-    else if(st.lkVsTeamStats){const rows=st.lkVsTeamStats.map(t=>{const tm=st.lkTeamList.find(x=>x.id===t.teamId);return{label:tm?.abbr||t.team,stat:t.stat}});tbl=rows.length>0?mkTable(lkCols,rows):`<div class="empty">No matchup data</div>`}
-    lkBody=`<div class="lk-section"><select id="vsTeamSel"><option value="">All Teams</option>${tOpts}</select></div><div style="margin-top:8px">${tbl}</div>`;
+    else if(st.lkVsTeamStats){const rows=st.lkVsTeamStats.map(t=>({label:st.lkTeamList.find(x=>x.id===t.teamId)?.abbr||t.team,stat:t.stat}));tbl=rows.length?mkT(lkC,rows):`<div class="empty">No data</div>`}
+    lkBody=`<div class="lk-section"><select id="vsTeamSel"><option value="">All Teams</option>${tO}</select></div><div style="margin-top:8px">${tbl}</div>`;
   }
   if(st.lkSubTab==="vsPlayer"){
     const sugs=st.lkVsPlayerResults.length?`<div class="suggestions" style="display:block;position:relative;margin:8px 16px">${st.lkVsPlayerResults.map(r=>`<div class="sug-item" onclick="pickVsP(${r.id},'${r.name.replace(/'/g,"\\'")}')"><span class="sug-name">${r.name}</span> <span class="sug-meta">${r.team} · ${r.pos}</span></div>`).join("")}</div>`:"";
     let res=`<div class="empty">Search for a ${st.lkPlayerType==="pitcher"?"batter":"pitcher"}</div>`;
     if(st.lkLoading.vsPlayer)res=`<div class="loading-sm">⚾ Loading...</div>`;
-    else if(st.lkVsPlayerStats){
-      const s=st.lkVsPlayerStats;
-      const bx=st.lkPlayerType==="pitcher"?[{v:s.era||"—",l:"ERA"},{v:s.inningsPitched||"—",l:"IP"},{v:s.strikeOuts||"—",l:"K"},{v:s.avg||"—",l:"BAA"}]:[{v:s.avg||"—",l:"AVG"},{v:s.homeRuns||"—",l:"HR"},{v:s.atBats||"—",l:"AB"},{v:s.ops||"—",l:"OPS"}];
-      res=`<div style="padding:0 16px"><div class="card"><div class="card-title">${lk.name} vs ${st.lkVsPlayerName}</div><div class="stat-grid" style="margin:0">${bx.map(b=>`<div class="stat-box"><div class="val">${b.v}</div><div class="lbl">${b.l}</div></div>`).join("")}</div></div></div>${mkTable(lkCols,[{stat:s}])}`;
-    }else if(st.lkVsPlayerId)res=`<div class="empty">No head-to-head data</div>`;
+    else if(st.lkVsPlayerStats){const s=st.lkVsPlayerStats;const bx=st.lkPlayerType==="pitcher"?[{v:s.era||"—",l:"ERA"},{v:s.inningsPitched||"—",l:"IP"},{v:s.strikeOuts||"—",l:"K"},{v:s.avg||"—",l:"BAA"}]:[{v:s.avg||"—",l:"AVG"},{v:s.homeRuns||"—",l:"HR"},{v:s.atBats||"—",l:"AB"},{v:s.ops||"—",l:"OPS"}];res=`<div style="padding:0 16px"><div class="card"><div class="card-title">${lk.name} vs ${st.lkVsPlayerName}</div><div class="stat-grid" style="margin:0">${bx.map(b=>`<div class="stat-box"><div class="val">${b.v}</div><div class="lbl">${b.l}</div></div>`).join("")}</div></div></div>${mkT(lkC,[{stat:s}])}`}
+    else if(st.lkVsPlayerId)res=`<div class="empty">No head-to-head data</div>`;
     lkBody=`<div class="lk-section"><input type="text" id="vsPlayerInput" placeholder="Search ${st.lkPlayerType==="pitcher"?"batter":"pitcher"}..."/></div>${sugs}${res}`;
   }
-  const lkSugsHTML=st.lkResults.length?`<div class="suggestions" style="display:block">${st.lkResults.map((r,i)=>`<div class="sug-item" onclick="pickLkPlayer(${i})"><div class="sug-name">${r.name}</div><div class="sug-meta">${r.team} · ${r.pos} · #${r.number}</div></div>`).join("")}</div>`:"";
+  const lkSugs=st.lkResults.length?`<div class="suggestions" style="display:block">${st.lkResults.map((r,i)=>`<div class="sug-item" onclick="pickLkPlayer(${i})"><div class="sug-name">${r.name}</div><div class="sug-meta">${r.team} · ${r.pos} · #${r.number}</div></div>`).join("")}</div>`:"";
 
-  // === BUILD HTML ===
-  const showControls=activeTab==="dashboard"||activeTab==="gamelog";
+  // === HTML ===
+  const showCtrl=activeTab==="dashboard"||activeTab==="gamelog";
   app.innerHTML=`
   <div class="header">
     <div class="header-title">⚾ MLB DFS Dashboard</div>
-    ${showControls?`
+    ${showCtrl?`
     <div class="row" style="margin-top:0;margin-bottom:8px">
       <div onclick="switchMode('batter')" style="flex:1;padding:6px;text-align:center;font-size:12px;font-weight:700;border-radius:6px;cursor:pointer;${st.mode==='batter'?'background:#22c55e;color:#0f291a':'background:#1a3d2a;color:#6b8f7b;border:1px solid #2d5a3d'}">🏏 Batters</div>
       <div onclick="switchMode('pitcher')" style="flex:1;padding:6px;text-align:center;font-size:12px;font-weight:700;border-radius:6px;cursor:pointer;${st.mode==='pitcher'?'background:#22c55e;color:#0f291a':'background:#1a3d2a;color:#6b8f7b;border:1px solid #2d5a3d'}">⚾ Pitchers</div>
     </div>
     <div class="search-wrap">
-      <input type="text" id="dashPlayerSearch" placeholder="Search ${st.mode==='pitcher'?'pitcher':'batter'}..." value="${esc(st.showPlayerSugs?st.playerSearch:st.player)}" autocomplete="off"/>
-      ${st.showPlayerSugs?`<div class="suggestions" style="display:block">${st.playerSuggestions.map(p=>`<div class="sug-item" onclick="pickDashPlayer('${esc(p.player_name)}')"><div class="sug-name">${esc(p.player_name)}</div><div class="sug-meta">${esc(p.team_abbr||"")}</div></div>`).join("")}</div>`:""}
+      <input type="text" id="dashPlayerSearch" placeholder="Search ${st.mode==='pitcher'?'pitcher':'batter'}..." value="${esc(st.showPlayerSugs?st.playerSearch:player)}" autocomplete="off"/>
+      ${st.showPlayerSugs&&st.playerSuggestions.length?`<div class="suggestions" style="display:block">${st.playerSuggestions.map(p=>`<div class="sug-item" onmousedown="event.preventDefault()" onclick="pickDashPlayer('${esc(p.player_name)}')"><div class="sug-name">${esc(p.player_name)}</div><div class="sug-meta">${esc(p.team_abbr||"")}</div></div>`).join("")}</div>`:""}
     </div>
     <div class="row">
       <select id="metricSel">${metricOpts}</select>
       <input type="number" id="lineInput" value="${line}" placeholder="Enter Line" step="0.5"/>
     </div>`:""}
-    ${activeTab==="lookup"?`<div class="search-wrap"><input type="text" id="lkSearch" placeholder="Search any MLB player..." autocomplete="off"/>${lkSugsHTML}</div>`:""}
+    ${activeTab==="lookup"?`<div class="search-wrap"><input type="text" id="lkSearch" placeholder="Search any MLB player..." autocomplete="off"/>${lkSugs}</div>`:""}
   </div>
 
   <div id="pg-dash" class="page ${activeTab==="dashboard"?"active":""}">
     ${earlyBanner}
-    ${playerHasLogs?`<div class="stats-strip"><div class="stats-strip-inner">${statStrip}</div></div>`:""}
-    ${playerHasLogs?`<div class="section"><div class="label">Game Log — ${metric}</div><div class="bar-chart">${bars}</div>${lineNum?`<div class="line-indicator">Line: ${lineNum}</div>`:""}</div>`:""}
-    ${playerHasLogs?`<div class="section"><div class="label">Averages</div><div class="avg-cards">${avgs}</div></div>`:""}
-    ${pickBanner}
-    ${propsHTML}
+    ${pHasLogs?`<div class="stats-strip"><div class="stats-strip-inner">${statStrip}</div></div>`:""}
+    ${pHasLogs?`<div class="section"><div class="label">Game Log — ${metric}</div><div class="bar-chart">${bars}</div>${lineNum?`<div class="line-indicator">Line: ${lineNum}</div>`:""}</div>`:""}
+    ${pHasLogs?`<div class="section"><div class="label">Averages</div><div class="avg-cards">${avgs}</div></div>`:""}
+    ${pickBanner}${propsHTML}
     <div class="section"><div class="split-row">
-      ${isPitcher?`
-      <div class="split-card"><span class="split-title">Season Rates</span>
-        ${playerHasLogs?`<div class="matchup-stats"><div class="matchup-stat"><div class="val">${seasTotals.ERA||"—"}</div><div class="lbl">ERA</div></div><div class="matchup-stat"><div class="val">${seasTotals.WHIP||"—"}</div><div class="lbl">WHIP</div></div><div class="matchup-stat"><div class="val">${seasTotals.K9||"—"}</div><div class="lbl">K/9</div></div><div class="matchup-stat"><div class="val">${seasTotals.SO||"—"}</div><div class="lbl">K</div></div></div>`:`<div class="no-data">No stats yet</div>`}
-      </div>`:`
-      <div class="split-card"><span class="split-title">vs ${oppHand}HP Splits</span>
-        ${vsAvg||vsOps?`<div class="matchup-stats"><div class="matchup-stat"><div class="val">${vsAvg?vsAvg.toFixed(3):"—"}</div><div class="lbl">AVG</div></div><div class="matchup-stat"><div class="val">${vsOps?vsOps.toFixed(3):"—"}</div><div class="lbl">OPS</div></div><div class="matchup-stat"><div class="val">${vsHr||"—"}</div><div class="lbl">HR</div></div><div class="matchup-stat"><div class="val">${vsSo||"—"}</div><div class="lbl">SO</div></div></div>`:`<div class="no-data">No split data yet</div>`}
-      </div>`}
+      ${isP?`<div class="split-card"><span class="split-title">Season Rates</span>${pHasLogs?`<div class="matchup-stats"><div class="matchup-stat"><div class="val">${sT.ERA||"—"}</div><div class="lbl">ERA</div></div><div class="matchup-stat"><div class="val">${sT.WHIP||"—"}</div><div class="lbl">WHIP</div></div><div class="matchup-stat"><div class="val">${sT.K9||"—"}</div><div class="lbl">K/9</div></div><div class="matchup-stat"><div class="val">${sT.SO||"—"}</div><div class="lbl">K</div></div></div>`:`<div class="no-data">No stats yet</div>`}</div>`:`<div class="split-card"><span class="split-title">vs ${oppH}HP Splits</span>${vsAvg||vsOps?`<div class="matchup-stats"><div class="matchup-stat"><div class="val">${vsAvg?vsAvg.toFixed(3):"—"}</div><div class="lbl">AVG</div></div><div class="matchup-stat"><div class="val">${vsOps?vsOps.toFixed(3):"—"}</div><div class="lbl">OPS</div></div><div class="matchup-stat"><div class="val">${vsHr||"—"}</div><div class="lbl">HR</div></div><div class="matchup-stat"><div class="val">${vsSo||"—"}</div><div class="lbl">SO</div></div></div>`:`<div class="no-data">No split data yet</div>`}</div>`}
       <div class="split-card"><span class="split-title">Home / Away</span><div class="mini-bars-container">${haBars}</div></div>
     </div></div>
-    <div class="section"><div class="matchup-card">
-      ${isPitcher?`<div class="matchup-header">⚾ vs ${playerTonight.opp_abbr_tonight||"—"}</div><div class="matchup-sub">${playerTonight.home_away_tonight||"—"} · ${playerTonight.venue_tonight||"—"} · vs ${playerTonight.opp_starter||"TBD"}</div>`:`<div class="matchup-header">⚾ vs ${oppPitcher}</div><div class="matchup-sub">${playerTonight.opp_abbr_tonight||"—"} · ${oppHand}HP · ${venue}</div>`}
-    </div></div>
-    ${wx.temp_f?`<div class="section"><div class="weather-card"><div class="card-title">🌤️ Weather</div>
-      <div class="weather-row"><span class="weather-key">Temperature</span><span class="weather-val">${wx.temp_f}°F (feels ${wx.feels_like_f}°F)</span></div>
-      <div class="weather-row"><span class="weather-key">Wind</span><span class="weather-val">${wx.wind_mph} mph ${wx.wind_dir}</span></div>
-      <div class="weather-row"><span class="weather-key">Condition</span><span class="weather-val">${wx.description||"—"}</span></div>
-      ${wx.is_dome===true||wx.is_dome==="TRUE"||wx.is_dome==="True"?`<div class="weather-row"><span class="weather-key">🏟️</span><span class="weather-val" style="color:#4ade80">Dome — weather irrelevant</span></div>`:""}
-    </div></div>`:""}
-    ${lineNum&&playerHasLogs?`<div class="section"><div class="card"><div class="card-title">📊 Hit Rates — ${metric} > ${lineNum}</div>
-      <div class="hit-row" style="border:none;padding-top:0"><span class="hit-key">L5</span><span class="hit-val">${hitsL5}/5</span></div>
-      <div class="hit-row"><span class="hit-key">L10</span><span class="hit-val">${hitsL10}/10</span></div>
-      <div class="hit-row"><span class="hit-key">Season</span><span class="hit-val">${hitsSeas}/${allLogs.length} (${seasRate!==null?(seasRate*100).toFixed(0):"—"}%)</span></div>
-    </div></div>`:""}
-    <div class="timestamp">Last Refreshed: ${lastUpdated}</div>
+    <div class="section"><div class="matchup-card">${isP?`<div class="matchup-header">⚾ vs ${pT.opp_abbr_tonight||"—"}</div><div class="matchup-sub">${pT.home_away_tonight||"—"} · ${pT.venue_tonight||"—"} · vs ${pT.opp_starter||"TBD"}</div>`:`<div class="matchup-header">⚾ vs ${oppP}</div><div class="matchup-sub">${pT.opp_abbr_tonight||"—"} · ${oppH}HP · ${venue}</div>`}</div></div>
+    ${wx.temp_f?`<div class="section"><div class="weather-card"><div class="card-title">🌤️ Weather</div><div class="weather-row"><span class="weather-key">Temp</span><span class="weather-val">${wx.temp_f}°F (feels ${wx.feels_like_f}°F)</span></div><div class="weather-row"><span class="weather-key">Wind</span><span class="weather-val">${wx.wind_mph} mph ${wx.wind_dir}</span></div><div class="weather-row"><span class="weather-key">Condition</span><span class="weather-val">${wx.description||"—"}</span></div>${wx.is_dome===true||wx.is_dome==="TRUE"||wx.is_dome==="True"?`<div class="weather-row"><span class="weather-key">🏟️</span><span class="weather-val" style="color:#4ade80">Dome — weather irrelevant</span></div>`:""}</div></div>`:""}
+    ${lineNum&&pHasLogs?`<div class="section"><div class="card"><div class="card-title">📊 Hit Rates — ${metric} > ${lineNum}</div><div class="hit-row" style="border:none;padding-top:0"><span class="hit-key">L5</span><span class="hit-val">${hL5}/5</span></div><div class="hit-row"><span class="hit-key">L10</span><span class="hit-val">${hL10}/10</span></div><div class="hit-row"><span class="hit-key">Season</span><span class="hit-val">${hSeas}/${allLogs.length} (${sRate!==null?(sRate*100).toFixed(0):"—"}%)</span></div></div></div>`:""}
+    <div class="timestamp">Last Refreshed: ${lastUp}</div>
     <div class="timestamp" style="color:#2d5a3d;font-size:9px;padding-top:0">Made by S. Krolikowski w/ Claude · 2026</div>
   </div>
 
   <div id="pg-log" class="page ${activeTab==="gamelog"?"active":""}">
-    ${!playerHasLogs?`<div class="early-banner"><div class="icon">🌱</div><div class="msg">No Game Logs Yet</div><div class="sub">Check the Lookup tab for career stats.</div></div>`:`
-    <div class="log-controls"><select id="oppFilter">${oppOptions}</select></div>
-    <div class="log-table-wrap"><table><thead><tr><th>DATE</th><th>OPP</th><th>H/A</th>${tableHeaders}</tr></thead><tbody>${tableRows}</tbody></table></div>`}
+    ${!pHasLogs?`<div class="early-banner"><div class="icon">🌱</div><div class="msg">No Game Logs Yet</div><div class="sub">Check the Lookup tab for career stats.</div></div>`:`<div class="log-controls"><select id="oppFilter">${oppOpts}</select></div><div class="log-table-wrap"><table><thead><tr><th>DATE</th><th>OPP</th><th>H/A</th>${tHeaders}</tr></thead><tbody>${tRows}</tbody></table></div>`}
   </div>
 
   <div id="pg-picks" class="page ${activeTab==="picks"?"active":""}">
@@ -521,20 +445,12 @@ function render(){
       <div class="sub-tab ${st.picksView==="picks"?"active":""}" onclick="switchPicksView('picks')">🤖 AI Picks</div>
       <div class="sub-tab ${st.picksView==="props"?"active":""}" onclick="switchPicksView('props')">🎲 Props Browser</div>
     </div>
-    ${picksTabHTML}
+    ${picksHTML}
     <div class="timestamp">Data from MLB Dashboard Engine · DraftKings via The Odds API</div>
   </div>
 
   <div id="pg-lookup" class="page ${activeTab==="lookup"?"active":""}">
-    ${lk?`
-    <div class="profile"><div class="profile-img"><img src="${lk.img}" onerror="this.style.display='none'"/></div><div class="profile-info"><h2>${lk.name}</h2><p>${lk.team} · ${lk.pos} · #${lk.number} · B:${lk.bats} T:${lk.throws}</p></div></div>
-    ${lkSummary}
-    <div class="sub-tabs">
-      <div class="sub-tab ${st.lkSubTab==="career"?"active":""}" onclick="switchLkSub('career')">Career</div>
-      <div class="sub-tab ${st.lkSubTab==="vsTeam"?"active":""}" onclick="switchLkSub('vsTeam')">vs Team</div>
-      <div class="sub-tab ${st.lkSubTab==="vsPlayer"?"active":""}" onclick="switchLkSub('vsPlayer')">vs Player</div>
-    </div>
-    ${lkBody}`:`<div class="empty" style="padding:60px 20px;font-size:14px">Search for any active MLB player to see career stats, team matchups, and head-to-head data.</div>`}
+    ${lk?`<div class="profile"><div class="profile-img"><img src="${lk.img}" onerror="this.style.display='none'"/></div><div class="profile-info"><h2>${lk.name}</h2><p>${lk.team} · ${lk.pos} · #${lk.number} · B:${lk.bats} T:${lk.throws}</p></div></div>${lkSum}<div class="sub-tabs"><div class="sub-tab ${st.lkSubTab==="career"?"active":""}" onclick="switchLkSub('career')">Career</div><div class="sub-tab ${st.lkSubTab==="vsTeam"?"active":""}" onclick="switchLkSub('vsTeam')">vs Team</div><div class="sub-tab ${st.lkSubTab==="vsPlayer"?"active":""}" onclick="switchLkSub('vsPlayer')">vs Player</div></div>${lkBody}`:`<div class="empty" style="padding:60px 20px;font-size:14px">Search for any active MLB player to see career stats, team matchups, and head-to-head data.</div>`}
     <div class="timestamp">Data from MLB Stats API · Live</div>
   </div>
 
@@ -545,9 +461,13 @@ function render(){
     <button class="tab-btn ${activeTab==="lookup"?"active":""}" onclick="switchTab('lookup')">🔍 Lookup</button>
   </div>`;
 
-  // === EVENT LISTENERS ===
+  // === EVENTS ===
   const ps=document.getElementById("dashPlayerSearch");
-  if(ps){ps.onfocus=e=>{if(_restoring)return;e.target.value="";st.playerSearch="";st.showPlayerSugs=false};ps.oninput=e=>filterPlayerSugs(e.target.value);ps.onblur=e=>{setTimeout(()=>{st.showPlayerSugs=false;st.playerSearch="";render()},200)}}
+  if(ps){
+    ps.onfocus=e=>{if(_restoring)return;e.target.value="";st.playerSearch="";st.showPlayerSugs=false};
+    ps.oninput=e=>filterPlayerSugs(e.target.value);
+    ps.onblur=e=>{setTimeout(()=>{st.showPlayerSugs=false;st.playerSearch="";render()},250)};
+  }
   const ms=document.getElementById("metricSel");if(ms)ms.onchange=e=>{st.metric=e.target.value;render()};
   const li=document.getElementById("lineInput");if(li)li.onchange=e=>{st.line=e.target.value;render()};
   const of=document.getElementById("oppFilter");if(of)of.onchange=e=>{st.oppFilter=e.target.value;render()};
@@ -558,87 +478,51 @@ function render(){
   restoreFocus(focus);
 }
 
-// === LOOKUP FUNCTIONS ===
+// === LOOKUP ===
 async function searchLkPlayers(q){
   if(q.length<2){st.lkResults=[];render();return}
-  try{
-    const d=await mlbFetch(`${MLB_API}/people/search?names=${encodeURIComponent(q)}&sportId=1&hydrate=currentTeam&limit=10`);
-    st.lkResults=(d.people||[]).filter(p=>p.active).map(p=>({
-      id:p.id,name:p.fullName,team:p.currentTeam?.abbreviation||"",pos:p.primaryPosition?.abbreviation||"",
-      number:p.primaryNumber||"",bats:p.batSide?.code||"",throws:p.pitchHand?.code||"",
-      img:`https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_120,q_auto:best/v1/people/${p.id}/headshot/67/current`
-    }));render();
-  }catch(e){console.error(e)}
+  try{const d=await mlbFetch(`${MLB_API}/people/search?names=${encodeURIComponent(q)}&sportId=1&hydrate=currentTeam&limit=10`);st.lkResults=(d.people||[]).filter(p=>p.active).map(p=>({id:p.id,name:p.fullName,team:p.currentTeam?.abbreviation||"",pos:p.primaryPosition?.abbreviation||"",number:p.primaryNumber||"",bats:p.batSide?.code||"",throws:p.pitchHand?.code||"",img:`https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_120,q_auto:best/v1/people/${p.id}/headshot/67/current`}));render()}catch(e){console.error(e)}
 }
 function pickLkPlayer(i){
   const p=st.lkResults[i];st.lkPlayer=p;st.lkResults=[];st.lkSubTab="career";
-  st.lkCareer=null;st.lkYby=null;st.lkVsTeamStats=null;st.lkVsPlayerStats=null;
-  st.lkVsPlayerId=null;st.lkVsPlayerName="";st.lkVsTeamId=null;
+  st.lkCareer=null;st.lkYby=null;st.lkVsTeamStats=null;st.lkVsPlayerStats=null;st.lkVsPlayerId=null;st.lkVsPlayerName="";st.lkVsTeamId=null;
   st.lkPlayerType=["P","TWP"].includes(p.pos)?"pitcher":"batter";
-  const isPitcher=["P","TWP"].includes(p.pos);
-  const source=isPitcher?st.pTonight:st.tonight;
-  const match=source.find(t=>(t.player_name||"").toLowerCase()===p.name.toLowerCase());
-  if(match){st.player=match.player_name;if(isPitcher&&st.mode!=="pitcher"){st.mode="pitcher";st.metric="SO"}if(!isPitcher&&st.mode!=="batter"){st.mode="batter";st.metric="H"}}
+  const isP=["P","TWP"].includes(p.pos);
+  const src=isP?st.pTonight:st.tonight;
+  const match=src.find(t=>(t.player_name||"").toLowerCase()===p.name.toLowerCase());
+  if(match){st.player=match.player_name;if(isP&&st.mode!=="pitcher"){st.mode="pitcher";st.metric="SO"}if(!isP&&st.mode!=="batter"){st.mode="batter";st.metric="H"}}
   render();fetchLkCareer(p.id);
 }
 async function fetchLkCareer(id){
   st.lkLoading.career=true;render();
-  try{
-    const grp=st.lkPlayerType==="pitcher"?"pitching":"hitting";
-    const[cr,yby]=await Promise.all([mlbFetch(`${MLB_API}/people/${id}/stats?stats=career&group=${grp}`),mlbFetch(`${MLB_API}/people/${id}/stats?stats=yearByYear&group=${grp}&sportId=1`)]);
-    st.lkCareer=(cr.stats||[])[0]?.splits?.[0]?.stat||null;
-    st.lkYby=((yby.stats||[])[0]?.splits||[]).filter(s=>s.sport?.id===1).map(s=>({season:s.season,team:s.team?.abbreviation||"",stat:s.stat}));
-  }catch(e){console.error(e)}
+  try{const g=st.lkPlayerType==="pitcher"?"pitching":"hitting";const[cr,yby]=await Promise.all([mlbFetch(`${MLB_API}/people/${id}/stats?stats=career&group=${g}`),mlbFetch(`${MLB_API}/people/${id}/stats?stats=yearByYear&group=${g}&sportId=1`)]);st.lkCareer=(cr.stats||[])[0]?.splits?.[0]?.stat||null;st.lkYby=((yby.stats||[])[0]?.splits||[]).filter(s=>s.sport?.id===1).map(s=>({season:s.season,team:s.team?.abbreviation||"",stat:s.stat}))}catch(e){console.error(e)}
   st.lkLoading.career=false;render();
 }
 async function fetchLkVsTeam(id,teamId){
   st.lkLoading.vsTeam=true;render();
   try{
-    const grp=st.lkPlayerType==="pitcher"?"pitching":"hitting";
-    if(teamId){
-      const d=await mlbFetch(`${MLB_API}/people/${id}/stats?stats=vsTeam&group=${grp}&opposingTeamId=${teamId}&sportId=1`);
-      const splits=(d.stats||[])[0]?.splits||[];const tm=st.lkTeamList.find(t=>t.id===teamId);
-      st.lkVsTeamStats=splits.length?[{teamId,team:tm?.abbr||"",stat:splits.length===1?splits[0].stat:combSplits(splits)}]:[];
-    }else{
-      const results=[];
-      for(let i=0;i<st.lkTeamList.length;i+=10){
-        const batch=st.lkTeamList.slice(i,i+10);
-        const pr=batch.map(async tm=>{try{const d=await mlbFetch(`${MLB_API}/people/${id}/stats?stats=vsTeam&group=${grp}&opposingTeamId=${tm.id}&sportId=1`);const sp=(d.stats||[])[0]?.splits||[];if(sp.length)return{teamId:tm.id,team:tm.abbr,stat:sp.length===1?sp[0].stat:combSplits(sp)}}catch(e){}return null});
-        results.push(...(await Promise.all(pr)).filter(Boolean));
-        if(i+10<st.lkTeamList.length)await new Promise(r=>setTimeout(r,500));
-      }
-      st.lkVsTeamStats=results;
-    }
+    const g=st.lkPlayerType==="pitcher"?"pitching":"hitting";
+    if(teamId){const d=await mlbFetch(`${MLB_API}/people/${id}/stats?stats=vsTeam&group=${g}&opposingTeamId=${teamId}&sportId=1`);const sp=(d.stats||[])[0]?.splits||[];const tm=st.lkTeamList.find(t=>t.id===teamId);st.lkVsTeamStats=sp.length?[{teamId,team:tm?.abbr||"",stat:sp.length===1?sp[0].stat:combSplits(sp)}]:[]}
+    else{const results=[];for(let i=0;i<st.lkTeamList.length;i+=10){const batch=st.lkTeamList.slice(i,i+10);const pr=batch.map(async tm=>{try{const d=await mlbFetch(`${MLB_API}/people/${id}/stats?stats=vsTeam&group=${g}&opposingTeamId=${tm.id}&sportId=1`);const sp=(d.stats||[])[0]?.splits||[];if(sp.length)return{teamId:tm.id,team:tm.abbr,stat:sp.length===1?sp[0].stat:combSplits(sp)}}catch(e){}return null});results.push(...(await Promise.all(pr)).filter(Boolean));if(i+10<st.lkTeamList.length)await new Promise(r=>setTimeout(r,500))}st.lkVsTeamStats=results}
     st.lkVsTeamStats.sort((a,b)=>(parseInt(b.stat?.gamesPlayed)||0)-(parseInt(a.stat?.gamesPlayed)||0));
   }catch(e){console.error(e);st.lkVsTeamStats=[]}
   st.lkLoading.vsTeam=false;render();
 }
 function combSplits(splits){
   const t={};const keys=["gamesPlayed","atBats","hits","doubles","triples","homeRuns","rbi","runs","stolenBases","baseOnBalls","strikeOuts","totalBases","plateAppearances","hitByPitch","sacFlies","wins","losses","gamesStarted","inningsPitched"];
-  const stats=splits.map(s=>s.stat);
-  for(const k of keys){const s=stats.reduce((a,s)=>a+(parseFloat(s[k])||0),0);if(s>0)t[k]=s}
+  const stats=splits.map(s=>s.stat);for(const k of keys){const s=stats.reduce((a,s)=>a+(parseFloat(s[k])||0),0);if(s>0)t[k]=s}
   if(t.atBats>0){t.avg=(t.hits/t.atBats).toFixed(3);t.slg=((t.totalBases||0)/t.atBats).toFixed(3)}
   const pa=t.plateAppearances||(t.atBats+(t.baseOnBalls||0)+(t.hitByPitch||0)+(t.sacFlies||0));
   if(pa>0){t.obp=((t.hits+(t.baseOnBalls||0)+(t.hitByPitch||0))/pa).toFixed(3);t.ops=(parseFloat(t.obp||0)+parseFloat(t.slg||0)).toFixed(3)}
   return t;
 }
-async function searchVsP(q){
-  if(q.length<2){st.lkVsPlayerResults=[];render();return}
-  try{const d=await mlbFetch(`${MLB_API}/people/search?names=${encodeURIComponent(q)}&sportId=1&limit=8`);st.lkVsPlayerResults=(d.people||[]).map(p=>({id:p.id,name:p.fullName,pos:p.primaryPosition?.abbreviation||"",team:p.currentTeam?.abbreviation||""}));render()}catch(e){console.error(e)}
-}
+async function searchVsP(q){if(q.length<2){st.lkVsPlayerResults=[];render();return}try{const d=await mlbFetch(`${MLB_API}/people/search?names=${encodeURIComponent(q)}&sportId=1&limit=8`);st.lkVsPlayerResults=(d.people||[]).map(p=>({id:p.id,name:p.fullName,pos:p.primaryPosition?.abbreviation||"",team:p.currentTeam?.abbreviation||""}));render()}catch(e){console.error(e)}}
 function pickVsP(id,name){st.lkVsPlayerId=id;st.lkVsPlayerName=name;st.lkVsPlayerResults=[];fetchLkVsPlayer(st.lkPlayer.id,id)}
-async function fetchLkVsPlayer(pid,oid){
-  st.lkLoading.vsPlayer=true;st.lkVsPlayerResults=[];render();
-  try{const grp=st.lkPlayerType==="pitcher"?"pitching":"hitting";const d=await mlbFetch(`${MLB_API}/people/${pid}/stats?stats=vsPlayer&group=${grp}&opposingPlayerId=${oid}`);const sp=(d.stats||[])[0]?.splits||[];st.lkVsPlayerStats=sp.length?sp[0].stat:null}catch(e){st.lkVsPlayerStats=null}
-  st.lkLoading.vsPlayer=false;render();
-}
+async function fetchLkVsPlayer(pid,oid){st.lkLoading.vsPlayer=true;st.lkVsPlayerResults=[];render();try{const g=st.lkPlayerType==="pitcher"?"pitching":"hitting";const d=await mlbFetch(`${MLB_API}/people/${pid}/stats?stats=vsPlayer&group=${g}&opposingPlayerId=${oid}`);const sp=(d.stats||[])[0]?.splits||[];st.lkVsPlayerStats=sp.length?sp[0].stat:null}catch(e){st.lkVsPlayerStats=null}st.lkLoading.vsPlayer=false;render()}
 function switchLkSub(t){st.lkSubTab=t;if(t==="vsTeam")st.lkVsTeamStats=null;render()}
 
-// === LOAD DATA ===
-async function loadTeams(){
-  const yr=new Date().getMonth()>=3?new Date().getFullYear():new Date().getFullYear()-1;
-  try{const d=await mlbFetch(`${MLB_API}/teams?sportId=1&season=${yr}`);st.lkTeamList=(d.teams||[]).map(t=>({id:t.id,name:t.name,abbr:t.abbreviation}))}catch(e){}
-}
+// === LOAD ===
+async function loadTeams(){const yr=new Date().getMonth()>=3?new Date().getFullYear():new Date().getFullYear()-1;try{const d=await mlbFetch(`${MLB_API}/teams?sportId=1&season=${yr}`);st.lkTeamList=(d.teams||[]).map(t=>({id:t.id,name:t.name,abbr:t.abbreviation}))}catch(e){}}
 
 Promise.all([
   loadTeams(),
@@ -653,16 +537,29 @@ Promise.all([
   fetchSheet("Pitcher_Home_Away").catch(()=>[]),
   fetchSheet("Daily_Picks").catch(()=>[]),
   fetchSheet("DK_Player_Props").catch(()=>[])
-]).then(([_teams,tonight,logs,splits,weather,pitchers,schedule,pTonight,pLogs,pSplits,picks,props])=>{
+]).then(([_,tonight,logs,splits,weather,pitchers,schedule,pTonight,pLogs,pSplits,picks,props])=>{
   st.tonight=tonight;st.gameLogs=logs;st.splits=splits;st.weather=weather;
   st.pitchers=pitchers;st.schedule=schedule;
   st.pTonight=pTonight;st.pGameLogs=pLogs;st.pSplits=pSplits;
   st.picks=picks;st.props=props;
   st.loading=false;
-  if(st.mode==="pitcher"&&pTonight.length>0){st.player=pTonight[0].player_name||"";st.metric="SO"}
-  else if(tonight.length>0){st.player=tonight[0].player_name||"";st.metric="H"}
+
+  // Always default to batter mode with first valid player
+  st.mode="batter";st.metric="H";
+  st.player=firstValidPlayer(tonight);
+
+  // If no batters, try pitchers
+  if(!st.player&&pTonight.length>0){
+    st.mode="pitcher";st.metric="SO";
+    st.player=firstValidPlayer(pTonight);
+  }
+
+  console.log(`🚀 Dashboard loaded — mode:${st.mode}, player:"${st.player}"`);
+  console.log(`   Batters: ${tonight.length}, Logs: ${logs.length}, Pitchers: ${pTonight.length}`);
+  console.log(`   Props: ${props.length}, Picks: ${picks.length}, Weather: ${weather.length}`);
   render();
 }).catch(err=>{
+  console.error("❌ Load failed:",err);
   st.loading=false;
   st.error="Could not load data. Make sure your Google Sheet is set to 'Anyone with the link can view'.";
   render();
