@@ -500,6 +500,18 @@ function render(){
   </div>`;
 
   // === EVENTS ===
+  const ps=document.getElementById("dashPlayerSearch");
+  if(ps){
+    ps.onfocus=e=>{
+      if(_restoring)return;
+      e.target.value="";
+      st.playerSearch="";
+      st.showPlayerSugs=false;
+      const box=document.getElementById("sugBox");
+      if(box){box.innerHTML="";box.style.display="none"}
+    };
+    ps.oninput=e=>filterPlayerSugs(e.target.value);
+  }
   const ms=document.getElementById("metricSel");if(ms)ms.onchange=e=>{st.metric=e.target.value;render()};
   const li=document.getElementById("lineInput");if(li)li.onchange=e=>{st.line=e.target.value;render()};
   const of=document.getElementById("oppFilter");if(of)of.onchange=e=>{st.oppFilter=e.target.value;render()};
