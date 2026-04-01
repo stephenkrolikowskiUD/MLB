@@ -258,21 +258,25 @@ function switchMode(m){
 function switchPicksView(v){st.picksView=v;render()}
 function setPropsMetric(m){st.propsMetric=m;render()}
 
-// === SEARCH ===
+// === SEARCH — no full re-render, just update suggestions ===
 function filterPlayerSugs(q){
   st.playerSearch=q;
-  if(q.length<1){st.playerSuggestions=[];st.showPlayerSugs=false;render();return}
+  const box=document.getElementById("sugBox");
+  if(!box)return;
+  if(q.length<1){st.playerSuggestions=[];st.showPlayerSugs=false;box.innerHTML="";box.style.display="none";return}
   const src=st.mode==="pitcher"?st.pTonight:st.tonight;
   const ql=q.toLowerCase();
-  st.playerSuggestions=src.filter(p=>{
-    const n=p.player_name;
-    return n&&typeof n==="string"&&n.toLowerCase().includes(ql);
-  }).slice(0,10);
+  st.playerSuggestions=src.filter(p=>{const n=p.player_name;return n&&String(n).toLowerCase().includes(ql)}).slice(0,10);
   st.showPlayerSugs=st.playerSuggestions.length>0;
-  render();
+  if(st.showPlayerSugs){
+    box.style.display="block";
+    box.innerHTML=st.playerSuggestions.map(p=>`<div class="sug-item" onmousedown="event.preventDefault()" onclick="pickDashPlayer('${esc(p.player_name)}')""><div class="sug-name">${esc(p.player_name)}</div><div class="sug-meta">${esc(p.team_abbr||"")}</div></div>`).join("");
+  }else{box.innerHTML="";box.style.display="none"}
 }
 function pickDashPlayer(name){
   st.player=name;st.playerSearch="";st.playerSuggestions=[];st.showPlayerSugs=false;st.oppFilter="";
+  const box=document.getElementById("sugBox");if(box){box.innerHTML="";box.style.display="none"}
+  const inp=document.getElementById("dashPlayerSearch");if(inp)inp.value=name;
   console.log(`Selected: "${name}"`);
   render();
 }
@@ -435,8 +439,12 @@ function render(){
       <div onclick="switchMode('pitcher')" style="flex:1;padding:6px;text-align:center;font-size:12px;font-weight:700;border-radius:6px;cursor:pointer;${st.mode==='pitcher'?'background:#22c55e;color:#0f291a':'background:#1a3d2a;color:#6b8f7b;border:1px solid #2d5a3d'}">⚾ Pitchers</div>
     </div>
     <div class="search-wrap">
-      <input type="text" id="dashPlayerSearch" placeholder="Search ${st.mode==='pitcher'?'pitcher':'batter'}..." value="${esc(st.showPlayerSugs?st.playerSearch:player)}" autocomplete="off"/>
-      ${st.showPlayerSugs&&st.playerSuggestions.length?`<div class="suggestions" style="display:block">${st.playerSuggestions.map(p=>`<div class="sug-item" onmousedown="event.preventDefault()" onclick="pickDashPlayer('${esc(p.player_name)}')"><div class="sug-name">${esc(p.player_name)}</div><div class="sug-meta">${esc(p.team_abbr||"")}</div></div>`).join("")}</div>`:""}
+      <input type="text" id="dashPlayerSearch" placeholder="Search ${st.mode==='pitcher'?'pitcher':'batter'}..." value="${esc(player)}" autocomplete="off"
+        onfocus="this.select()"
+        oninput="filterPlayerSugs(this.value)"
+        onblur="setTimeout(()=>{const b=document.getElementById('sugBox');if(b){b.innerHTML='';b.style.display='none'}},300)"
+      />
+      <div id="sugBox" class="suggestions" style="display:none"></div>
     </div>
     <div class="row">
       <select id="metricSel">${metricOpts}</select>
@@ -488,12 +496,6 @@ function render(){
   </div>`;
 
   // === EVENTS ===
-  const ps=document.getElementById("dashPlayerSearch");
-  if(ps){
-    ps.onfocus=e=>{if(_restoring)return;e.target.value="";st.playerSearch="";st.showPlayerSugs=false};
-    ps.oninput=e=>filterPlayerSugs(e.target.value);
-    ps.onblur=e=>{setTimeout(()=>{st.showPlayerSugs=false;st.playerSearch="";render()},250)};
-  }
   const ms=document.getElementById("metricSel");if(ms)ms.onchange=e=>{st.metric=e.target.value;render()};
   const li=document.getElementById("lineInput");if(li)li.onchange=e=>{st.line=e.target.value;render()};
   const of=document.getElementById("oppFilter");if(of)of.onchange=e=>{st.oppFilter=e.target.value;render()};
