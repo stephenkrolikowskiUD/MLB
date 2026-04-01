@@ -169,6 +169,19 @@ let st={
   lkVsTeamId:null,lkLoading:{},lkTeamList:[]
 };
 
+// Clean column headers — Google Sheets CSV can add BOM/whitespace
+function cleanRows(rows){
+  if(!rows||!rows.length)return rows;
+  return rows.map(row=>{
+    const clean={};
+    for(const[k,v]of Object.entries(row)){
+      const ck=k.replace(/^\uFEFF/,'').replace(/[\u200B-\u200D\uFEFF]/g,'').trim();
+      clean[ck]=v;
+    }
+    return clean;
+  });
+}
+
 // === SHEET FETCHER with debug ===
 const fetchSheet=(name)=>new Promise((res,rej)=>{
   const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}`;
@@ -199,10 +212,23 @@ function getPick(name){if(!name||!st.picks.length)return null;const n=name.toLow
 
 // Find first player with a valid name from an array
 function firstValidPlayer(arr){
-  for(let i=0;i<arr.length;i++){
-    const n=arr[i]?.player_name;
-    if(n&&typeof n==="string"&&n.trim().length>0)return n.trim();
+  if(!arr||!arr.length)return "";
+  // Try exact key first
+  for(let i=0;i<Math.min(arr.length,30);i++){
+    const row=arr[i];if(!row)continue;
+    const n=row.player_name;
+    if(n&&String(n).trim().length>1)return String(n).trim();
   }
+  // Fallback: find any key containing "player_name" (handles BOM/whitespace in headers)
+  const first=arr[0];if(!first)return "";
+  const key=Object.keys(first).find(k=>k.replace(/[^a-zA-Z_]/g,'').toLowerCase()==="player_name"||k.includes("player_name"));
+  if(key){
+    for(let i=0;i<Math.min(arr.length,30);i++){
+      const v=arr[i]?.[key];
+      if(v&&String(v).trim().length>1)return String(v).trim();
+    }
+  }
+  console.warn("⚠️ Could not find player_name. Keys:",Object.keys(first).slice(0,5));
   return "";
 }
 
@@ -538,25 +564,36 @@ Promise.all([
   fetchSheet("Daily_Picks").catch(()=>[]),
   fetchSheet("DK_Player_Props").catch(()=>[])
 ]).then(([_,tonight,logs,splits,weather,pitchers,schedule,pTonight,pLogs,pSplits,picks,props])=>{
-  st.tonight=tonight;st.gameLogs=logs;st.splits=splits;st.weather=weather;
-  st.pitchers=pitchers;st.schedule=schedule;
-  st.pTonight=pTonight;st.pGameLogs=pLogs;st.pSplits=pSplits;
-  st.picks=picks;st.props=props;
+  // Clean all headers (Google Sheets CSV can add BOM/invisible chars)
+  st.tonight=cleanRows(tonight);
+  st.gameLogs=cleanRows(logs);
+  st.splits=cleanRows(splits);
+  st.weather=cleanRows(weather);
+  st.pitchers=cleanRows(pitchers);
+  st.schedule=cleanRows(schedule);
+  st.pTonight=cleanRows(pTonight);
+  st.pGameLogs=cleanRows(pLogs);
+  st.pSplits=cleanRows(pSplits);
+  st.picks=cleanRows(picks);
+  st.props=cleanRows(props);
   st.loading=false;
 
   // Always default to batter mode with first valid player
   st.mode="batter";st.metric="H";
-  st.player=firstValidPlayer(tonight);
+  st.player=firstValidPlayer(st.tonight);
 
   // If no batters, try pitchers
-  if(!st.player&&pTonight.length>0){
+  if(!st.player&&st.pTonight.length>0){
     st.mode="pitcher";st.metric="SO";
-    st.player=firstValidPlayer(pTonight);
+    st.player=firstValidPlayer(st.pTonight);
   }
 
   console.log(`🚀 Dashboard loaded — mode:${st.mode}, player:"${st.player}"`);
-  console.log(`   Batters: ${tonight.length}, Logs: ${logs.length}, Pitchers: ${pTonight.length}`);
-  console.log(`   Props: ${props.length}, Picks: ${picks.length}, Weather: ${weather.length}`);
+  console.log(`   Batters: ${st.tonight.length}, Logs: ${st.gameLogs.length}, Pitchers: ${st.pTonight.length}`);
+  console.log(`   Props: ${st.props.length}, Picks: ${st.picks.length}, Weather: ${st.weather.length}`);
+  if(st.tonight.length>0)console.log(`   Batter row 0 keys:`,Object.keys(st.tonight[0]).slice(0,8));
+  if(st.pTonight.length>0)console.log(`   Pitcher row 0 keys:`,Object.keys(st.pTonight[0]).slice(0,8));
+  if(!st.player)console.error(`❌ NO DEFAULT PLAYER FOUND. Batter row 0:`,JSON.stringify(st.tonight[0]).slice(0,200));
   render();
 }).catch(err=>{
   console.error("❌ Load failed:",err);
