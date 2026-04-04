@@ -159,6 +159,16 @@ td.push{color:#9ca3af;font-weight:700}
 .dinger-header{padding:12px 16px 4px;display:flex;justify-content:space-between;align-items:center}
 .dinger-title{color:#f59726;font-size:13px;font-weight:700}
 .dinger-desc{color:#6b8f7b;font-size:10px;padding:0 16px 8px}
+.combo-section{padding:12px 16px 0}
+.combo-title{color:#4ade80;font-size:12px;font-weight:700;margin-bottom:8px}
+.combo-card{background:#163024;border-radius:10px;padding:10px 14px;margin-bottom:6px;border-left:3px solid #f59726}
+.combo-card.best{border-left-color:#ef4444;background:#1a2024}
+.combo-rank{display:inline-block;background:#1a3d2a;color:#f59726;font-size:9px;font-weight:800;padding:2px 5px;border-radius:4px;margin-right:4px}
+.combo-card.best .combo-rank{color:#ef4444;background:#2a1a1a}
+.combo-players{font-weight:700;font-size:13px;display:inline}
+.combo-teams{color:#86efac;font-size:10px;margin-top:2px}
+.combo-score{float:right;font-size:12px;font-weight:700;color:#f59726}
+.combo-card.best .combo-score{color:#ef4444}
 </style>
 </head>
 <body>
@@ -272,6 +282,30 @@ function switchMode(m){
 }
 function switchPicksView(v){st.picksView=v;render()}
 function setPropsMetric(m){st.propsMetric=m;render()}
+
+// Build dinger combos from different teams
+function getDingerCombos(board,legs){
+  if(board.length<legs)return[];
+  const combos=[];
+  function gen(start,current){
+    if(current.length===legs){
+      const teams=current.map(d=>d.team);
+      if(new Set(teams).size===legs){
+        const score=current.reduce((s,d)=>s+d.score,0);
+        combos.push({players:current.slice(),score,teams});
+      }
+      return;
+    }
+    for(let i=start;i<board.length&&combos.length<500;i++){
+      current.push(board[i]);
+      gen(i+1,current);
+      current.pop();
+    }
+  }
+  gen(0,[]);
+  combos.sort((a,b)=>b.score-a.score);
+  return combos.slice(0,10);
+}
 
 // Build dinger rankings from tonight's batters
 function getDingerBoard(){
