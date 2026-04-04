@@ -370,6 +370,31 @@ function render(){
     sT.WHIP=rIP>0?(((sT.H||0)+(sT.BB||0))/rIP).toFixed(2):"0.00";
     sT.K9=rIP>0?((sT.SO*9)/rIP).toFixed(1):"0.0";
     statStrip=["W","L","ERA","WHIP","SO","K9","IP","DK_FP"].map(s=>`<div class="stat-item"><div class="stat-label">${s}</div><div class="stat-val">${sT[s]}</div></div>`).join("");
+  }else if(st.picksView==="dingers"){
+    const db=getDingerBoard();
+    if(!db.length){picksHTML=`<div class="empty" style="padding:40px">No dinger data available. Run the engine first.</div>`}
+    else{
+      picksHTML=`<div class="dinger-header"><div class="dinger-title">💣 Tonight's Dinger Board</div></div>
+      <div class="dinger-desc">Ranked by HR rate, recent power, and DK odds. Top 3 are 🔥.</div>`;
+      picksHTML+=db.map((d,i)=>{
+        const isTop=i<3;
+        const odds=d.overOdds?fmtOdds(d.overOdds):"—";
+        const ratePct=(d.hrRate*100).toFixed(1);
+        const abPerHR=d.seasHR>0?Math.round(d.totalAB/d.seasHR):"—";
+        return`<div class="dinger-card ${isTop?"top3":""}">
+          <div class="dinger-left">
+            <div><span class="dinger-rank">${i+1}</span><span class="dinger-name">${esc(d.name)}</span></div>
+            <div class="dinger-meta">${esc(d.team)} vs ${esc(d.pitcher)} (${d.hand}HP) · ${esc(d.venue)}</div>
+            <div class="dinger-meta">${d.seasHR} HR in ${d.gamesPlayed} G · L7 avg: ${d.l7HR.toFixed(2)} · L14: ${d.l14HR.toFixed(2)}</div>
+          </div>
+          <div class="dinger-right">
+            <div class="dinger-rate">${ratePct}%</div>
+            <div class="dinger-sub">HR/AB · 1 per ${abPerHR} AB</div>
+            ${d.dkLine!==null?`<div class="dinger-odds">DK ${d.dkLine} O:${odds}</div>`:""}
+          </div>
+        </div>`;
+      }).join("");
+    }
   }else{
     ["H","HR","RBI","R","SB","BB","TB","SO","AB"].forEach(s=>{sT[s]=allLogs.reduce((a,g)=>a+toNum(g[s]),0)});
     sT.AVG=sT.AB>0?(sT.H/sT.AB).toFixed(3):".000";
