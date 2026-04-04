@@ -358,6 +358,7 @@ function pickDashPlayer(name){
 
 // === RENDER ===
 function render(){
+  var picksHTML="";
   const focus=saveFocus();
   const app=document.getElementById("app");
   if(st.loading){app.innerHTML=`<div class="loading"><div style="font-size:32px;animation:bounce .8s ease-in-out infinite">⚾</div><div style="color:#6b8f7b;font-size:14px">Loading dashboard...</div></div>`;return}
