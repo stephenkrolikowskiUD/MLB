@@ -183,7 +183,7 @@ let st={
   tonight:[],gameLogs:[],splits:[],weather:[],pitchers:[],schedule:[],
   pTonight:[],pGameLogs:[],pSplits:[],
   picks:[],props:[],
-  mode:"batter",
+  mode:"batter", 
   player:"",metric:"H",line:"",activeTab:"dashboard",oppFilter:"",
   playerSearch:"",playerSuggestions:[],showPlayerSugs:false,
   loading:true,error:null,
@@ -247,7 +247,6 @@ function firstValidPlayer(arr){
       if(v&&String(v).trim().length>1)return String(v).trim();
     }
   }
-  console.warn("⚠️ Could not find player_name. Keys:",Object.keys(first).slice(0,5));
   return "";
 }
 
@@ -268,7 +267,6 @@ function switchMode(m){
   st.line="";st.oppFilter="";st.playerSearch="";st.playerSuggestions=[];st.showPlayerSugs=false;
   const src=m==="pitcher"?st.pTonight:st.tonight;
   st.player=firstValidPlayer(src);
-  console.log(`Mode → ${m}, default player: "${st.player}", source has ${src.length} entries`);
   render();
 }
 function switchPicksView(v){st.picksView=v;render()}
@@ -299,26 +297,24 @@ function getDingerCombos(board,legs){
 
 function getDingerBoard(){
   const rows=[];
-  let _dbg={total:0,noName:0,noLogs:0,noAB:0,added:0};
-  if(st.gameLogs.length>0){const gk=Object.keys(st.gameLogs[0]);console.log("🔍 DingerBoard — GameLog cols:",gk.join(", "));console.log("🔍 DingerBoard — First log AB value:",JSON.stringify(st.gameLogs[0].AB),"type:",typeof st.gameLogs[0].AB)}
   for(const p of st.tonight){
-    _dbg.total++;
-    const name=p.player_name;if(!name){_dbg.noName++;continue}
+    const name=p.player_name;if(!name)continue;
     const seasHR=toNum(p.Seas_HR);
     const l7HR=toNum(p.L7_HR);
     const l14HR=toNum(p.L14_HR);
-    // Compute AB and HR from game logs (not sheet columns)
-    const pLogs=st.gameLogs.filter(g=>g.player_name===name);
-    if(!pLogs.length){_dbg.noLogs++;continue}
-    const totalAB=pLogs.reduce((s,g)=>s+toNum(g.AB),0);
-    if(totalAB===0){_dbg.noAB++;if(_dbg.noAB<=3)console.log("🔍 0 AB for:",name,"logs:",pLogs.length,"first log keys:",Object.keys(pLogs[0]).filter(k=>k.includes("AB")||k.includes("ab")||k.includes("At")));continue}
-    const seasHRtotal=pLogs.reduce((s,g)=>s+toNum(g.HR),0);
+    const seasAB=toNum(p.Seas_AB);
+    if(!seasAB||seasAB===0)continue;
+    
+    const seasHRtotal=st.gameLogs.filter(g=>g.player_name===name).reduce((s,g)=>s+toNum(g.HR),0);
+    const totalAB=st.gameLogs.filter(g=>g.player_name===name).reduce((s,g)=>s+toNum(g.AB),0);
     const hrRate=totalAB>0?seasHRtotal/totalAB:0;
-    const gamesPlayed=pLogs.length;
+    const gamesPlayed=st.gameLogs.filter(g=>g.player_name===name).length;
     const hrPerGame=gamesPlayed>0?seasHRtotal/gamesPlayed:0;
+    
     const hrProp=st.props.find(pr=>(pr.PLAYER_NAME||"").toLowerCase()===name.toLowerCase()&&pr.METRIC==="HR");
     const dkLine=hrProp?hrProp.DK_LINE:null;
     const overOdds=hrProp?parseInt(hrProp.OVER_ODDS)||null:null;
+    
     let score=0;
     score+=hrRate*100;
     score+=l7HR*15;
@@ -327,6 +323,7 @@ function getDingerBoard(){
     score+=hrPerGame*20;
     if(overOdds&&overOdds<0)score+=10;
     if(overOdds&&overOdds>0&&overOdds<=200)score+=5;
+    
     rows.push({
       name,team:p.team_abbr||"",opp:p.opp_abbr_tonight||"",pitcher:p.opp_pitcher_name||"TBD",
       hand:p.opp_pitcher_hand||"?",venue:p.venue_tonight||"",
@@ -336,18 +333,15 @@ function getDingerBoard(){
     });
   }
   rows.sort((a,b)=>b.score-a.score);
-  console.log(`🔍 DingerBoard summary — tonight:${_dbg.total} noName:${_dbg.noName} noLogs:${_dbg.noLogs} noAB:${_dbg.noAB} added:${rows.length}`);
   return rows.slice(0,30);
 }
 
 function pickDashPlayer(name){
   st.player=name;st.oppFilter="";
-  console.log("Selected:",name);
   render();
 }
 
 function render(){
-  var picksHTML="";
   const focus=saveFocus();
   const app=document.getElementById("app");
   if(st.loading){app.innerHTML=`<div class="loading"><div style="font-size:32px;animation:bounce .8s ease-in-out infinite">⚾</div><div style="color:#6b8f7b;font-size:14px">Loading dashboard...</div></div>`;return}
@@ -383,6 +377,7 @@ function render(){
   const bars=last10.map(g=>{const v=toNum(g[metric]);const h=Math.max(4,(v/maxLog)*80);return`<div class="bar-wrap"><div class="bar-val">${v}</div><div class="bar" style="height:${h}px;background:${barColor(v,lineNum)}"></div><div class="bar-date">${(g.game_date||"").slice(5)}</div></div>`}).join("");
   const avgs=[{l:"Season",v:seasAvg},{l:midLbl,v:midAvg},{l:shortLbl,v:shortAvg},{l:"Last",v:lastGame}].map(a=>`<div class="avg-card" style="border:1px solid ${lineNum&&a.v>=lineNum?"#22c55e44":lineNum?"#ef444433":"#2d5a3d"}"><div class="avg-label">${a.l}</div><div class="avg-val" style="color:${avgColor(a.v,lineNum)}">${a.v.toFixed(2)}</div></div>`).join("");
 
+  // PURE STAT STRIP (No Dingers mixed in here anymore!)
   const sT={};let statStrip="";
   if(isP){
     ["IP","SO","ER","H","HR","BB","W","L","PC","R"].forEach(s=>{sT[s]=allLogs.reduce((a,g)=>a+toNum(g[s]),0)});
@@ -393,31 +388,6 @@ function render(){
     sT.WHIP=rIP>0?(((sT.H||0)+(sT.BB||0))/rIP).toFixed(2):"0.00";
     sT.K9=rIP>0?((sT.SO*9)/rIP).toFixed(1):"0.0";
     statStrip=["W","L","ERA","WHIP","SO","K9","IP","DK_FP"].map(s=>`<div class="stat-item"><div class="stat-label">${s}</div><div class="stat-val">${sT[s]}</div></div>`).join("");
-  }else if(st.picksView==="dingers"){
-    const db=getDingerBoard();
-    if(!db.length){picksHTML=`<div class="empty" style="padding:40px">No dinger data available. Run the engine first.</div>`}
-    else{
-      picksHTML=`<div class="dinger-header"><div class="dinger-title">💣 Tonight's Dinger Board</div></div>
-      <div class="dinger-desc">Ranked by HR rate, recent power, and DK odds. Top 3 are 🔥.</div>`;
-      picksHTML+=db.map((d,i)=>{
-        const isTop=i<3;
-        const odds=d.overOdds?fmtOdds(d.overOdds):"—";
-        const ratePct=(d.hrRate*100).toFixed(1);
-        const abPerHR=d.seasHR>0?Math.round(d.totalAB/d.seasHR):"—";
-        return`<div class="dinger-card ${isTop?"top3":""}">
-          <div class="dinger-left">
-            <div><span class="dinger-rank">${i+1}</span><span class="dinger-name">${esc(d.name)}</span></div>
-            <div class="dinger-meta">${esc(d.team)} vs ${esc(d.pitcher)} (${d.hand}HP) · ${esc(d.venue)}</div>
-            <div class="dinger-meta">${d.seasHR} HR in ${d.gamesPlayed} G · L7 avg: ${d.l7HR.toFixed(2)} · L14: ${d.l14HR.toFixed(2)}</div>
-          </div>
-          <div class="dinger-right">
-            <div class="dinger-rate">${ratePct}%</div>
-            <div class="dinger-sub">HR/AB · 1 per ${abPerHR} AB</div>
-            ${d.dkLine!==null?`<div class="dinger-odds">DK ${d.dkLine} O:${odds}</div>`:""}
-          </div>
-        </div>`;
-      }).join("");
-    }
   }else{
     ["H","HR","RBI","R","SB","BB","TB","SO","AB"].forEach(s=>{sT[s]=allLogs.reduce((a,g)=>a+toNum(g[s]),0)});
     sT.AVG=sT.AB>0?(sT.H/sT.AB).toFixed(3):".000";
@@ -452,8 +422,8 @@ function render(){
   const tHeaders=logCols.map(c=>`<th class="${c===metric?"hl":""}">${c}</th>`).join("");
   const tRows=fLogs.map(g=>{const cells=logCols.map(c=>{const v=toNum(g[c]);let cls=c===metric?"hl":"";if(c===metric&&lineNum){cls=v>lineNum?"hit":v===lineNum?"push":"miss"}return`<td class="${cls}">${c==="DK_FP"?v.toFixed(1):v}</td>`}).join("");return`<tr><td>${(g.game_date||"").slice(5)}</td><td>${g.opp_abbr||"—"}</td><td>${g.home_away||"—"}</td>${cells}</tr>`}).join("");
 
-  // === PICKS TAB ===
-  picksHTML="";
+  // === PROPER PICKS TAB ROUTING (Dingers live here!) ===
+  let picksHTML="";
   if(st.picksView==="picks"){
     if(!st.picks.length){picksHTML=`<div class="empty" style="padding:40px">No AI picks today. Run the engine to generate.</div>`}
     else{
@@ -473,10 +443,12 @@ function render(){
     }
   }else if(st.picksView==="dingers"){
     const db=getDingerBoard();
-    if(!db.length){picksHTML=`<div class="empty" style="padding:40px">No dinger data available. Run the engine first.</div>`}
-    else{
+    if(!db.length){
+      picksHTML=`<div class="empty" style="padding:40px">No dinger data available. Run the engine first.</div>`;
+    }else{
       picksHTML=`<div class="dinger-header"><div class="dinger-title">💣 Tonight's Dinger Board</div></div>
       <div class="dinger-desc">Ranked by HR rate, recent power, and DK odds. Top 3 are 🔥.</div>`;
+      
       picksHTML+=db.map((d,i)=>{
         const isTop=i<3;
         const odds=d.overOdds?fmtOdds(d.overOdds):"—";
@@ -496,11 +468,19 @@ function render(){
         </div>`;
       }).join("");
 
-      const combos=getDingerCombos(db,3);
-      if(combos.length){
-        picksHTML+=`<div class="combo-section"><div class="combo-title">🎰 Best 3-Leg Dinger Parlays</div>`;
-        picksHTML+=combos.slice(0,8).map((c,i)=>`<div class="combo-card ${i===0?"best":""}"><span class="combo-rank">#${i+1}</span><span class="combo-players">${c.players.map(p=>esc(p.name)).join(" + ")}</span><span class="combo-score">${c.score.toFixed(0)}</span><div class="combo-teams">${c.teams.join(" · ")}</div></div>`).join("");
-        picksHTML+=`</div>`;
+      // THE COMBO GENERATOR OUTPUT
+      const combos = getDingerCombos(db.slice(0, 10), 3);
+      if(combos.length > 0) {
+        picksHTML += `<div class="combo-section"><div class="combo-title">🔥 Optimal 3-Leg Parlays</div>`;
+        picksHTML += combos.map((c, i) => {
+          const isBest = i === 0 ? "best" : "";
+          return `<div class="combo-card ${isBest}">
+            <div><span class="combo-rank">#${i+1}</span><span class="combo-players">${c.players.map(p => esc(p.name)).join(" + ")}</span></div>
+            <div class="combo-score">Score: ${Math.round(c.score)}</div>
+            <div class="combo-teams">${c.teams.join(" / ")}</div>
+          </div>`;
+        }).join("");
+        picksHTML += `</div>`;
       }
     }
   }else{
@@ -514,7 +494,6 @@ function render(){
     <div class="props-tbl-wrap"><table><thead><tr><th>Player</th><th>Prop</th><th>Line</th><th>Over</th><th>Under</th></tr></thead><tbody>${sorted.map(p=>`<tr><td style="text-align:left;font-weight:600">${esc(p.PLAYER_NAME)}</td><td><span style="color:#4ade80;font-weight:600">${p.METRIC}</span></td><td style="font-weight:700">${p.DK_LINE}</td><td class="${parseInt(p.OVER_ODDS)<=-130?"odds-over":parseInt(p.OVER_ODDS)>=130?"odds-under":"odds-even"}">${fmtOdds(p.OVER_ODDS)}</td><td class="${parseInt(p.UNDER_ODDS)<=-130?"odds-over":parseInt(p.UNDER_ODDS)>=130?"odds-under":"odds-even"}">${fmtOdds(p.UNDER_ODDS)}</td></tr>`).join("")}</tbody></table></div>`;
   }
 
-  // === LOOKUP ===
   const lk=st.lkPlayer;
   const lkC=st.lkPlayerType==="pitcher"?[{k:"gamesPlayed",l:"G"},{k:"gamesStarted",l:"GS"},{k:"wins",l:"W"},{k:"losses",l:"L"},{k:"era",l:"ERA"},{k:"inningsPitched",l:"IP"},{k:"strikeOuts",l:"SO"},{k:"baseOnBalls",l:"BB"},{k:"whip",l:"WHIP"},{k:"avg",l:"BAA"}]:[{k:"gamesPlayed",l:"G"},{k:"atBats",l:"AB"},{k:"hits",l:"H"},{k:"homeRuns",l:"HR"},{k:"rbi",l:"RBI"},{k:"runs",l:"R"},{k:"stolenBases",l:"SB"},{k:"baseOnBalls",l:"BB"},{k:"strikeOuts",l:"SO"},{k:"avg",l:"AVG"},{k:"obp",l:"OBP"},{k:"slg",l:"SLG"},{k:"ops",l:"OPS"}];
   const fv=(s,k)=>{if(!s)return"—";const v=s[k];return v===undefined||v===null?"—":v};
@@ -701,13 +680,6 @@ Promise.all([
     st.mode="pitcher";st.metric="SO";
     st.player=firstValidPlayer(st.pTonight);
   }
-
-  console.log(`🚀 Dashboard loaded — mode:${st.mode}, player:"${st.player}"`);
-  console.log(`   Batters: ${st.tonight.length}, Logs: ${st.gameLogs.length}, Pitchers: ${st.pTonight.length}`);
-  console.log(`   Props: ${st.props.length}, Picks: ${st.picks.length}, Weather: ${st.weather.length}`);
-  if(st.tonight.length>0)console.log(`   Batter row 0 keys:`,Object.keys(st.tonight[0]).slice(0,8));
-  if(st.pTonight.length>0)console.log(`   Pitcher row 0 keys:`,Object.keys(st.pTonight[0]).slice(0,8));
-  if(!st.player)console.error(`❌ NO DEFAULT PLAYER FOUND. Batter row 0:`,JSON.stringify(st.tonight[0]).slice(0,200));
   render();
 }).catch(err=>{
   console.error("❌ Load failed:",err);
