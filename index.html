@@ -469,13 +469,13 @@ function getDingerBoard(){
   const rows=[];
   for(const p of st.tonight){
     const name=p.player_name;if(!name)continue;
-    const seasHR=toNum(p.Seas_HR);
+    const logs=st.gameLogs.filter(g=>g.player_name===name);
+    const totalAB=logs.reduce((s,g)=>s+toNum(g.AB),0);
+    if(totalAB===0)continue;
+    const seasHR=safeGet(p,'HR');
     const l7HR=toNum(p.L7_HR);
     const l14HR=toNum(p.L14_HR);
-    const totalAB=st.gameLogs.filter(g=>g.player_name===name).reduce((s,g)=>s+toNum(g.AB),0);
-    if(totalAB===0)continue;
-    const seasHRtotal=st.gameLogs.filter(g=>g.player_name===name).reduce((s,g)=>s+toNum(g.HR),0);
-    const totalAB=st.gameLogs.filter(g=>g.player_name===name).reduce((s,g)=>s+toNum(g.AB),0);
+    const seasHRtotal=logs.reduce((s,g)=>s+toNum(g.HR),0);
     const hrRate=totalAB>0?seasHRtotal/totalAB:0;
     const gamesPlayed=st.gameLogs.filter(g=>g.player_name===name).length;
     const hrPerGame=gamesPlayed>0?seasHRtotal/gamesPlayed:0;
