@@ -360,18 +360,18 @@ function getDraftBoard(){
 
     // Derive 3B and 1B from TB: TB = 1B + 2*2B + 3*3B + 4*HR
     // 3B = (TB - H - 2B - 3*HR) / 2
-    const s3B=Math.max(0,(sTB-sH-s2B-3*sHR)/2);
-    const s1B=Math.max(0,sH-s2B-s3B-sHR);
+    const s3B=Math.max(0,(sTB-sH-s2B-3*sHR)/2)||0;
+    const s1B=Math.max(0,sH-s2B-s3B-sHR)||0;
 
-    const projUD=s1B*3+s2B*6+s3B*8+sHR*10+sBB*3+sRBI*2+sR*2+sSB*4;
+    const projUD=(s1B*3+s2B*6+s3B*8+sHR*10+sBB*3+sRBI*2+sR*2+sSB*4)||0;
 
     // L7 averages for trend
     const l7H=toNum(most.L7_H),l7HR=toNum(most.L7_HR),l72B=toNum(most.L7_2B||0);
     const l7TB=toNum(most.L7_TB),l7RBI=toNum(most.L7_RBI),l7R=toNum(most.L7_R);
     const l7SB=toNum(most.L7_SB),l7BB=toNum(most.L7_BB);
-    const l73B=Math.max(0,(l7TB-l7H-l72B-3*l7HR)/2);
-    const l71B=Math.max(0,l7H-l72B-l73B-l7HR);
-    const l7UD=l71B*3+l72B*6+l73B*8+l7HR*10+l7BB*3+l7RBI*2+l7R*2+l7SB*4;
+    const l73B=Math.max(0,(l7TB-l7H-l72B-3*l7HR)/2)||0;
+    const l71B=Math.max(0,l7H-l72B-l73B-l7HR)||0;
+    const l7UD=(l71B*3+l72B*6+l73B*8+l7HR*10+l7BB*3+l7RBI*2+l7R*2+l7SB*4)||0;
 
     const aiPick=aiMap.get(name.toLowerCase());
     const isSmash=aiPick&&(aiPick.confidence||"").toUpperCase()==="SMASH";
@@ -387,7 +387,7 @@ function getDraftBoard(){
       name,team:p.team_abbr||"",opp:p.opp_abbr_tonight||"",
       pitcher:p.opp_pitcher_name||"TBD",hand:p.opp_pitcher_hand||"?",
       venue:p.venue_tonight||"",
-      projUD:projUD.toFixed(1),l7UD:l7UD.toFixed(1),
+      projUD:(projUD||0).toFixed(1),l7UD:(l7UD||0).toFixed(1),
       sH,sHR,sRBI,sR,sSB,sBB,
       isSmash,aiPick,isPitcher:false,pos,
       gamesPlayed:logs.length
@@ -409,15 +409,15 @@ function getDraftBoard(){
       const ip=toNum(g.IP);const er=toNum(g.ER);return ip>=6&&er<=3;
     }).length;
     const qsRate=logs.length>0?qsGames/logs.length:0;
-    const avgQS=qsRate; // probability of QS per start
+    const avgQS=qsRate||0;
 
-    const projUD=sW*2+avgQS*3+sSO*1+sIP*1+sER*(-1);
+    const projUD=(sW*2+avgQS*3+sSO*1+sIP*1+sER*(-1))||0;
 
     // L3 trend for pitchers
     const l3SO=toNum(most.L3_SO),l3ER=toNum(most.L3_ER),l3W=toNum(most.L3_W);
     const l3IP=toNum(most.L3_IP);
-    const l3QS=logs.slice(0,3).filter(g=>toNum(g.IP)>=6&&toNum(g.ER)<=3).length/Math.min(3,logs.length);
-    const l3UD=l3W*2+l3QS*3+l3SO*1+l3IP*1+l3ER*(-1);
+    const l3QS=logs.slice(0,3).filter(g=>toNum(g.IP)>=6&&toNum(g.ER)<=3).length/Math.max(1,Math.min(3,logs.length));
+    const l3UD=(l3W*2+l3QS*3+l3SO*1+l3IP*1+l3ER*(-1))||0;
 
     const aiPick=aiMap.get(name.toLowerCase());
     const isSmash=aiPick&&(aiPick.confidence||"").toUpperCase()==="SMASH";
@@ -425,14 +425,14 @@ function getDraftBoard(){
     board.push({
       name,team:p.team_abbr||"",opp:p.opp_abbr_tonight||"",
       pitcher:"",hand:"",venue:p.venue_tonight||"",
-      projUD:projUD.toFixed(1),l7UD:l3UD.toFixed(1),
+      projUD:(projUD||0).toFixed(1),l7UD:(l3UD||0).toFixed(1),
       sSO,sER,sW,sIP,qsRate,
       isSmash,aiPick,isPitcher:true,pos:"P",
       gamesPlayed:logs.length
     });
   }
 
-  board.sort((a,b)=>parseFloat(b.projUD)-parseFloat(a.projUD));
+  board.sort((a,b)=>(parseFloat(b.projUD)||0)-(parseFloat(a.projUD)||0));
   return board;
 }
 
@@ -482,7 +482,7 @@ function getDingerBoard(){
     if(overOdds&&overOdds>0&&overOdds<=200)score+=5;
     rows.push({name,team:p.team_abbr||"",opp:p.opp_abbr_tonight||"",pitcher:p.opp_pitcher_name||"TBD",hand:p.opp_pitcher_hand||"?",venue:p.venue_tonight||"",seasHR:seasHRtotal,totalAB,hrRate,hrPerGame,gamesPlayed,l7HR,l14HR,seasAvgHR:seasHR,dkLine,overOdds,score});
   }
-  rows.sort((a,b)=>b.score-a.score);
+  rows.sort((a,b)=>(b.score||0)-(a.score||0));
   return rows.slice(0,30);
 }
 
@@ -531,7 +531,7 @@ function getStreaks(){
         stat:sType.key,threshold:sType.threshold,streak,
         label:sType.label,emoji:sType.emoji,propType:sType.type,
         desc:sType.desc,
-        avgDuring:avgDuring.toFixed(2),seasAvg:seasAvg.toFixed(2),
+        avgDuring:(avgDuring||0).toFixed(2),seasAvg:(seasAvg||0).toFixed(2),
         recentVals,
         dkLine:prop?prop.DK_LINE:null,
         overOdds:prop?parseInt(prop.OVER_ODDS)||null:null,
@@ -575,7 +575,7 @@ function getStreaks(){
         stat:sType.key,threshold:sType.threshold,streak,
         label:sType.label,emoji:sType.emoji,propType:sType.type,
         desc:sType.desc,isLte:isLte,
-        avgDuring:avgDuring.toFixed(2),seasAvg:seasAvg.toFixed(2),
+        avgDuring:(avgDuring||0).toFixed(2),seasAvg:(seasAvg||0).toFixed(2),
         recentVals,
         dkLine:prop?prop.DK_LINE:null,
         overOdds:prop?parseInt(prop.OVER_ODDS)||null:null,
