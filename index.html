@@ -202,6 +202,33 @@ td.push{color:#9ca3af;font-weight:700}
 .streak-action{margin-top:8px;display:flex;gap:8px}
 .streak-dash-btn{flex:1;padding:7px 0;border-radius:6px;border:1px solid #2d5a3d;background:#1a3d2a;color:#86efac;font-size:11px;font-weight:600;cursor:pointer;text-align:center}
 .streak-dash-btn:active{background:#24503a}
+/* ── Draft Cheat Sheet ── */
+.draft-card{background:#163024;border-radius:10px;padding:10px 14px;margin:0 16px 6px;border-left:3px solid #2d5a3d;display:flex;align-items:center;gap:10px;cursor:pointer;transition:opacity .15s}
+.draft-card:active{transform:scale(.98)}
+.draft-card.drafted{opacity:.3;text-decoration:line-through}
+.draft-card.smash{border-left-color:#22c55e}
+.draft-card.tier1{border-left-color:#4ade80}
+.draft-card.tier2{border-left-color:#3b82f6}
+.draft-card.tier3{border-left-color:#8b5cf6}
+.draft-card.pitcher{border-left-color:#6495ed}
+.draft-rank{font-size:14px;font-weight:800;min-width:24px;text-align:center}
+.draft-main{flex:1;min-width:0}
+.draft-name{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.draft-meta{font-size:10px;color:#86efac;margin-top:2px}
+.draft-tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:3px}
+.draft-tag{font-size:8px;font-weight:700;padding:1px 5px;border-radius:4px}
+.draft-fp{text-align:right;min-width:50px}
+.draft-fp-val{font-size:18px;font-weight:800}
+.draft-fp-lbl{font-size:8px;color:#6b8f7b}
+.draft-tier-label{padding:8px 16px 4px;font-size:11px;font-weight:700;letter-spacing:1px}
+.draft-controls{display:flex;gap:6px;padding:8px 16px;align-items:center}
+.draft-reset{background:none;border:1px solid #2d5a3d;border-radius:6px;color:#86efac;font-size:10px;padding:4px 10px;cursor:pointer}
+.draft-count{font-size:10px;color:#6b8f7b;flex:1;text-align:right}
+.draft-pos{font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;margin-left:4px;vertical-align:middle}
+.draft-pos-p{background:rgba(100,149,237,0.12);color:#6495ed;border:1px solid rgba(100,149,237,0.25)}
+.draft-pos-if{background:rgba(239,68,68,0.12);color:#ef4444;border:1px solid rgba(239,68,68,0.25)}
+.draft-pos-of{background:rgba(34,197,94,0.12);color:#22c55e;border:1px solid rgba(34,197,94,0.25)}
+.draft-pos-flex{background:rgba(168,85,247,0.12);color:#a855f7;border:1px solid rgba(168,85,247,0.25)}
 </style>
 </head>
 <body>
@@ -221,7 +248,7 @@ let st={
   playerSearch:"",playerSuggestions:[],showPlayerSugs:false,
   loading:true,error:null,
   picksView:"picks",propsMetric:"ALL",propsSearch:"",
-  streakFilter:"all",
+  streakFilter:"all",drafted:new Set(),
   lkPlayer:null,lkResults:[],lkSubTab:"career",lkPlayerType:"batter",
   lkCareer:null,lkYby:null,lkVsTeamStats:null,lkVsPlayerId:null,
   lkVsPlayerName:"",lkVsPlayerResults:[],lkVsPlayerStats:null,
@@ -306,6 +333,108 @@ function switchMode(m){
 function switchPicksView(v){st.picksView=v;render()}
 function setPropsMetric(m){st.propsMetric=m;render()}
 function setStreakFilter(f){st.streakFilter=f;render()}
+function toggleDrafted(name){if(st.drafted.has(name))st.drafted.delete(name);else st.drafted.add(name);render()}
+function resetDrafted(){st.drafted.clear();render()}
+
+// ═══════════════════════════════════════════
+// ⚾ DRAFT CHEAT SHEET (Underdog Scoring)
+// ═══════════════════════════════════════════
+// Pitcher: W=2, QS=3, K=1, IP=1, ER=-1
+// Hitter: 1B=3, 2B=6, 3B=8, HR=10, BB=3, HBP=3, RBI=2, R=2, SB=4
+function getDraftBoard(){
+  const board=[];
+  const aiMap=new Map();
+  st.picks.forEach(p=>{if(p.player)aiMap.set(p.player.toLowerCase(),p)});
+
+  // --- BATTERS ---
+  for(const p of st.tonight){
+    const name=p.player_name;if(!name)continue;
+    const logs=st.gameLogs.filter(g=>g.player_name===name).sort((a,b)=>(b.game_date||"").localeCompare(a.game_date||""));
+    if(!logs.length)continue;
+    const most=logs[0]||{};
+
+    // Season averages
+    const sH=toNum(most.Seas_H),sHR=toNum(most.Seas_HR),s2B=toNum(most.Seas_2B||0);
+    const sTB=toNum(most.Seas_TB),sRBI=toNum(most.Seas_RBI),sR=toNum(most.Seas_R);
+    const sSB=toNum(most.Seas_SB),sBB=toNum(most.Seas_BB);
+
+    // Derive 3B and 1B from TB: TB = 1B + 2*2B + 3*3B + 4*HR
+    // 3B = (TB - H - 2B - 3*HR) / 2
+    const s3B=Math.max(0,(sTB-sH-s2B-3*sHR)/2);
+    const s1B=Math.max(0,sH-s2B-s3B-sHR);
+
+    const projUD=s1B*3+s2B*6+s3B*8+sHR*10+sBB*3+sRBI*2+sR*2+sSB*4;
+
+    // L7 averages for trend
+    const l7H=toNum(most.L7_H),l7HR=toNum(most.L7_HR),l72B=toNum(most.L7_2B||0);
+    const l7TB=toNum(most.L7_TB),l7RBI=toNum(most.L7_RBI),l7R=toNum(most.L7_R);
+    const l7SB=toNum(most.L7_SB),l7BB=toNum(most.L7_BB);
+    const l73B=Math.max(0,(l7TB-l7H-l72B-3*l7HR)/2);
+    const l71B=Math.max(0,l7H-l72B-l73B-l7HR);
+    const l7UD=l71B*3+l72B*6+l73B*8+l7HR*10+l7BB*3+l7RBI*2+l7R*2+l7SB*4;
+
+    const aiPick=aiMap.get(name.toLowerCase());
+    const isSmash=aiPick&&(aiPick.confidence||"").toUpperCase()==="SMASH";
+
+    // Position guess from tonight data or default
+    let pos="FLEX";
+    const posRaw=(p.position||"").toUpperCase();
+    if(posRaw.includes("C")||posRaw.includes("1B")||posRaw.includes("2B")||posRaw.includes("3B")||posRaw.includes("SS"))pos="IF";
+    else if(posRaw.includes("OF")||posRaw.includes("LF")||posRaw.includes("CF")||posRaw.includes("RF"))pos="OF";
+    else if(posRaw.includes("DH"))pos="FLEX";
+
+    board.push({
+      name,team:p.team_abbr||"",opp:p.opp_abbr_tonight||"",
+      pitcher:p.opp_pitcher_name||"TBD",hand:p.opp_pitcher_hand||"?",
+      venue:p.venue_tonight||"",
+      projUD:projUD.toFixed(1),l7UD:l7UD.toFixed(1),
+      sH,sHR,sRBI,sR,sSB,sBB,
+      isSmash,aiPick,isPitcher:false,pos,
+      gamesPlayed:logs.length
+    });
+  }
+
+  // --- PITCHERS ---
+  for(const p of st.pTonight){
+    const name=p.player_name;if(!name)continue;
+    const logs=st.pGameLogs.filter(g=>g.player_name===name).sort((a,b)=>(b.game_date||"").localeCompare(a.game_date||""));
+    if(!logs.length)continue;
+    const most=logs[0]||{};
+
+    const sSO=toNum(most.Seas_SO),sER=toNum(most.Seas_ER),sW=toNum(most.Seas_W);
+    // IP as average per start
+    const sIP=toNum(most.Seas_IP);
+    // QS rate from game logs
+    const qsGames=logs.filter(g=>{
+      const ip=toNum(g.IP);const er=toNum(g.ER);return ip>=6&&er<=3;
+    }).length;
+    const qsRate=logs.length>0?qsGames/logs.length:0;
+    const avgQS=qsRate; // probability of QS per start
+
+    const projUD=sW*2+avgQS*3+sSO*1+sIP*1+sER*(-1);
+
+    // L3 trend for pitchers
+    const l3SO=toNum(most.L3_SO),l3ER=toNum(most.L3_ER),l3W=toNum(most.L3_W);
+    const l3IP=toNum(most.L3_IP);
+    const l3QS=logs.slice(0,3).filter(g=>toNum(g.IP)>=6&&toNum(g.ER)<=3).length/Math.min(3,logs.length);
+    const l3UD=l3W*2+l3QS*3+l3SO*1+l3IP*1+l3ER*(-1);
+
+    const aiPick=aiMap.get(name.toLowerCase());
+    const isSmash=aiPick&&(aiPick.confidence||"").toUpperCase()==="SMASH";
+
+    board.push({
+      name,team:p.team_abbr||"",opp:p.opp_abbr_tonight||"",
+      pitcher:"",hand:"",venue:p.venue_tonight||"",
+      projUD:projUD.toFixed(1),l7UD:l3UD.toFixed(1),
+      sSO,sER,sW,sIP,qsRate,
+      isSmash,aiPick,isPitcher:true,pos:"P",
+      gamesPlayed:logs.length
+    });
+  }
+
+  board.sort((a,b)=>parseFloat(b.projUD)-parseFloat(a.projUD));
+  return board;
+}
 
 function getDingerCombos(board,legs){
   if(board.length<legs)return[];
@@ -637,6 +766,85 @@ function render(){
         picksHTML+=`</div>`;
       }
     }
+  }else if(st.picksView==="draft"){
+    // ═══════════════════════════════════════
+    // ⚾ DRAFT CHEAT SHEET
+    // ═══════════════════════════════════════
+    const board=getDraftBoard();
+    const available=board.filter(p=>!st.drafted.has(p.name));
+    const draftedCount=st.drafted.size;
+
+    function getTier(proj,isP){
+      const v=parseFloat(proj);
+      if(isP){
+        if(v>=8)return{label:"TIER 1 — Ace",cls:"tier1",color:"#4ade80"};
+        if(v>=5)return{label:"TIER 2 — Solid SP",cls:"tier2",color:"#3b82f6"};
+        return{label:"TIER 3 — Spot Start",cls:"tier3",color:"#8b5cf6"};
+      }
+      if(v>=12)return{label:"TIER 1 — Elite",cls:"tier1",color:"#4ade80"};
+      if(v>=9)return{label:"TIER 2 — Strong",cls:"tier2",color:"#3b82f6"};
+      if(v>=6)return{label:"TIER 3 — Solid",cls:"tier3",color:"#8b5cf6"};
+      if(v>=4)return{label:"TIER 4 — Role Player",cls:"",color:"#86efac"};
+      return{label:"TIER 5 — Dart Throw",cls:"",color:"#6b8f7b"};
+    }
+
+    function getPosClass(pos){
+      if(pos==="P")return"draft-pos-p";
+      if(pos==="IF")return"draft-pos-if";
+      if(pos==="OF")return"draft-pos-of";
+      return"draft-pos-flex";
+    }
+
+    picksHTML=`<div style="padding:12px 16px 4px;color:#4ade80;font-size:13px;font-weight:700">⚾ Draft Cheat Sheet</div>
+    <div style="padding:0 16px 4px;color:#6b8f7b;font-size:10px">Underdog scoring: 1B×3 2B×6 3B×8 HR×10 BB×3 HBP×3 RBI×2 R×2 SB×4 | P: W×2 QS×3 K×1 IP×1 ER×-1</div>
+    <div style="padding:0 16px 4px;color:#6b8f7b;font-size:10px">Roster: P×1 · IF×2 · OF×2 · FLEX×1 — Tap to mark as drafted.</div>
+    <div class="draft-controls">
+      <button class="draft-reset" onclick="resetDrafted()">Reset Board</button>
+      <div class="draft-count">${draftedCount} drafted · ${available.length} available</div>
+    </div>`;
+
+    let lastTier="";
+    board.forEach((p,i)=>{
+      const tier=getTier(p.projUD,p.isPitcher);
+      const isDrafted=st.drafted.has(p.name);
+      const tierChanged=tier.label!==lastTier;
+      lastTier=tier.label;
+
+      let tags=[];
+      if(p.isSmash)tags.push(`<span class="draft-tag" style="background:#22c55e22;color:#22c55e">SMASH</span>`);
+      if(p.isPitcher){
+        if(p.qsRate>=0.6)tags.push(`<span class="draft-tag" style="background:#3b82f622;color:#3b82f6">QS ${(p.qsRate*100).toFixed(0)}%</span>`);
+        if(p.sSO>=6)tags.push(`<span class="draft-tag" style="background:#ef444422;color:#ef4444">🔥 ${p.sSO.toFixed(1)} K/GS</span>`);
+      }else{
+        if(p.sHR>=0.3)tags.push(`<span class="draft-tag" style="background:#ef444422;color:#ef4444">💣 POWER</span>`);
+        if(p.sSB>=0.3)tags.push(`<span class="draft-tag" style="background:#22c55e22;color:#22c55e">💨 SPEED</span>`);
+        if(p.sBB>=0.5)tags.push(`<span class="draft-tag" style="background:#3b82f622;color:#3b82f6">👁️ PATIENT</span>`);
+      }
+      const l7v=parseFloat(p.l7UD),projv=parseFloat(p.projUD);
+      if(l7v>projv*1.15)tags.push(`<span class="draft-tag" style="background:#22c55e22;color:#22c55e">📈 HOT</span>`);
+      if(l7v<projv*0.8&&l7v>0)tags.push(`<span class="draft-tag" style="background:#ef444422;color:#ef4444">📉 COLD</span>`);
+
+      const tierHeader=tierChanged?`<div class="draft-tier-label" style="color:${tier.color}">${tier.label}</div>`:"";
+      const cardCls=`draft-card${isDrafted?" drafted":""}${p.isSmash&&!isDrafted?" smash":!isDrafted?" "+tier.cls:""}${p.isPitcher&&!isDrafted?" pitcher":""}`;
+
+      const metaLine=p.isPitcher
+        ?`${esc(p.team)} vs ${esc(p.opp)} · ${p.sSO.toFixed(1)}K · ${p.sIP.toFixed(1)}IP · ${p.sER.toFixed(1)}ER`
+        :`${esc(p.team)} vs ${esc(p.pitcher)} (${p.hand}HP) · ${p.sH.toFixed(0)}h/${p.sHR.toFixed(1)}hr/${p.sRBI.toFixed(1)}rbi/${p.sR.toFixed(1)}r`;
+
+      picksHTML+=`${tierHeader}<div class="${cardCls}" onclick="toggleDrafted('${esc(p.name)}')">
+        <div class="draft-rank" style="color:${isDrafted?"#2d5a3d":tier.color}">${i+1}</div>
+        <div class="draft-main">
+          <div class="draft-name">${esc(p.name)}<span class="draft-pos ${getPosClass(p.pos)}">${p.pos}</span></div>
+          <div class="draft-meta">${metaLine}</div>
+          ${tags.length?`<div class="draft-tags">${tags.join("")}</div>`:""}
+        </div>
+        <div class="draft-fp">
+          <div class="draft-fp-val" style="color:${isDrafted?"#2d5a3d":tier.color}">${p.projUD}</div>
+          <div class="draft-fp-lbl">UD FP</div>
+          ${l7v!==projv?`<div style="font-size:9px;color:${l7v>projv?"#22c55e":"#ef4444"};margin-top:1px">L7: ${p.l7UD}</div>`:""}
+        </div>
+      </div>`;
+    });
   }else if(st.picksView==="streaks"){
     // ═══════════════════════════════════════
     // 🔥 STREAKS / TRENDS VIEW
@@ -802,6 +1010,7 @@ function render(){
   <div id="pg-picks" class="page ${activeTab==="picks"?"active":""}">
     <div class="sub-tabs" style="padding-top:12px">
       <div class="sub-tab ${st.picksView==="picks"?"active":""}" onclick="switchPicksView('picks')">🤖 AI Picks</div>
+      <div class="sub-tab ${st.picksView==="draft"?"active":""}" onclick="switchPicksView('draft')">⚾ Draft</div>
       <div class="sub-tab ${st.picksView==="streaks"?"active":""}" onclick="switchPicksView('streaks')">🔥 Streaks</div>
       <div class="sub-tab ${st.picksView==="dingers"?"active":""}" onclick="switchPicksView('dingers')">💣 Dingers</div>
       <div class="sub-tab ${st.picksView==="props"?"active":""}" onclick="switchPicksView('props')">🎲 Props</div>
