@@ -472,8 +472,8 @@ function getDingerBoard(){
     const seasHR=toNum(p.Seas_HR);
     const l7HR=toNum(p.L7_HR);
     const l14HR=toNum(p.L14_HR);
-    const seasAB=toNum(p.Seas_AB);
-    if(!seasAB||seasAB===0)continue;
+    const totalAB=st.gameLogs.filter(g=>g.player_name===name).reduce((s,g)=>s+toNum(g.AB),0);
+    if(totalAB===0)continue;
     const seasHRtotal=st.gameLogs.filter(g=>g.player_name===name).reduce((s,g)=>s+toNum(g.HR),0);
     const totalAB=st.gameLogs.filter(g=>g.player_name===name).reduce((s,g)=>s+toNum(g.AB),0);
     const hrRate=totalAB>0?seasHRtotal/totalAB:0;
