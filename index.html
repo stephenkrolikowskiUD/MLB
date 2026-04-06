@@ -283,7 +283,9 @@ const fetchSheet=(name)=>new Promise((res,rej)=>{
   .catch(e=>{console.error(`❌ Fetch error: ${name}`,e);rej(e)});
 });
 
-const toNum=v=>parseFloat(v)||0;
+const toNum=v=>{const n=parseFloat(v);return isNaN(n)?0:n};
+// Safe column getter — tries key, Seas_key, Season_key, L7_key variants
+const safeGet=(obj,key)=>{if(!obj)return 0;return toNum(obj[key]!==undefined?obj[key]:obj[`Seas_${key}`]!==undefined?obj[`Seas_${key}`]:obj[`Season_${key}`]!==undefined?obj[`Season_${key}`]:0)};
 const barColor=(v,l)=>!l?"#4ade80":v>l?"#22c55e":"#ef4444";
 const avgColor=(v,l)=>!l?"#4ade80":v>=l?"#4ade80":"#f97316";
 const esc=s=>{if(!s)return"";return String(s).replace(/[&<>'"]/g,t=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[t]))};
@@ -348,15 +350,16 @@ function getDraftBoard(){
 
   // --- BATTERS ---
   for(const p of st.tonight){
+    try{
     const name=p.player_name;if(!name)continue;
     const logs=st.gameLogs.filter(g=>g.player_name===name).sort((a,b)=>(b.game_date||"").localeCompare(a.game_date||""));
     if(!logs.length)continue;
     const most=logs[0]||{};
 
-    // Season averages
-    const sH=toNum(most.Seas_H),sHR=toNum(most.Seas_HR),s2B=toNum(most.Seas_2B||0);
-    const sTB=toNum(most.Seas_TB),sRBI=toNum(most.Seas_RBI),sR=toNum(most.Seas_R);
-    const sSB=toNum(most.Seas_SB),sBB=toNum(most.Seas_BB);
+    // Season averages — safeGet handles missing/renamed columns
+    const sH=safeGet(most,'Seas_H'),sHR=safeGet(most,'Seas_HR'),s2B=safeGet(most,'Seas_2B');
+    const sTB=safeGet(most,'Seas_TB'),sRBI=safeGet(most,'Seas_RBI'),sR=safeGet(most,'Seas_R');
+    const sSB=safeGet(most,'Seas_SB'),sBB=safeGet(most,'Seas_BB');
 
     // Derive 3B and 1B from TB: TB = 1B + 2*2B + 3*3B + 4*HR
     // 3B = (TB - H - 2B - 3*HR) / 2
@@ -366,9 +369,9 @@ function getDraftBoard(){
     const projUD=(s1B*3+s2B*6+s3B*8+sHR*10+sBB*3+sRBI*2+sR*2+sSB*4)||0;
 
     // L7 averages for trend
-    const l7H=toNum(most.L7_H),l7HR=toNum(most.L7_HR),l72B=toNum(most.L7_2B||0);
-    const l7TB=toNum(most.L7_TB),l7RBI=toNum(most.L7_RBI),l7R=toNum(most.L7_R);
-    const l7SB=toNum(most.L7_SB),l7BB=toNum(most.L7_BB);
+    const l7H=safeGet(most,'L7_H'),l7HR=safeGet(most,'L7_HR'),l72B=safeGet(most,'L7_2B');
+    const l7TB=safeGet(most,'L7_TB'),l7RBI=safeGet(most,'L7_RBI'),l7R=safeGet(most,'L7_R');
+    const l7SB=safeGet(most,'L7_SB'),l7BB=safeGet(most,'L7_BB');
     const l73B=Math.max(0,(l7TB-l7H-l72B-3*l7HR)/2)||0;
     const l71B=Math.max(0,l7H-l72B-l73B-l7HR)||0;
     const l7UD=(l71B*3+l72B*6+l73B*8+l7HR*10+l7BB*3+l7RBI*2+l7R*2+l7SB*4)||0;
@@ -392,10 +395,12 @@ function getDraftBoard(){
       isSmash,aiPick,isPitcher:false,pos,
       gamesPlayed:logs.length
     });
+    }catch(e){console.warn("Draft batter skip:",p.player_name,e)}
   }
 
   // --- PITCHERS ---
   for(const p of st.pTonight){
+    try{
     const name=p.player_name;if(!name)continue;
     const logs=st.pGameLogs.filter(g=>g.player_name===name).sort((a,b)=>(b.game_date||"").localeCompare(a.game_date||""));
     if(!logs.length)continue;
@@ -430,6 +435,7 @@ function getDraftBoard(){
       isSmash,aiPick,isPitcher:true,pos:"P",
       gamesPlayed:logs.length
     });
+    }catch(e){console.warn("Draft pitcher skip:",p.player_name,e)}
   }
 
   board.sort((a,b)=>(parseFloat(b.projUD)||0)-(parseFloat(a.projUD)||0));
